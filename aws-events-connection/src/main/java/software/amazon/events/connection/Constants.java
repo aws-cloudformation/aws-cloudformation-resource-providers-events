@@ -14,7 +14,7 @@ public class Constants {
             (model, proxyClient) -> model;
 
     public static final Constant BACK_OFF_DELAY = Constant.of()
-            .timeout(Duration.ofSeconds(60L))
-            .delay(Duration.ofSeconds(3L))
+            .timeout(Duration.ofSeconds(360L))
+            .delay(Duration.ofSeconds(15L))
             .build();
 }

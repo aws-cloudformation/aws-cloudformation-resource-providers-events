@@ -28,8 +28,8 @@ public final class TestConstants {
             .headerParameters(ConnectionHeaderParameter.builder().key("Key").value("Value").build())
             .build();
 
-    public static final HttpParameters modelInvocationHttpParameters = HttpParameters.builder()
-            .headerParameters(Arrays.asList(Parameters.builder().key("Key").value("Value").build()))
+    public static final software.amazon.events.connection.ConnectionHttpParameters modelInvocationHttpParameters = software.amazon.events.connection.ConnectionHttpParameters.builder()
+            .headerParameters(Arrays.asList(Parameter.builder().key("Key").value("Value").build()))
             .build();
 
     public static final ConnectionHttpParameters oAuthHttpParameters = ConnectionHttpParameters.builder()
@@ -38,10 +38,10 @@ public final class TestConstants {
             .queryStringParameters(ConnectionQueryStringParameter.builder().key("Key3").value("Value3").build())
             .build();
 
-    public static final HttpParameters modelOAuthHttpParameters = HttpParameters.builder()
-            .headerParameters(Arrays.asList(Parameters.builder().key("Key1").value("Value1").build()))
-            .bodyParameters(Arrays.asList(Parameters.builder().key("Key2").value("Value2").build()))
-            .queryStringParameters(Arrays.asList(Parameters.builder().key("Key3").value("Value3").build()))
+    public static final software.amazon.events.connection.ConnectionHttpParameters modelOAuthHttpParameters = software.amazon.events.connection.ConnectionHttpParameters.builder()
+            .headerParameters(Arrays.asList(Parameter.builder().key("Key1").value("Value1").build()))
+            .bodyParameters(Arrays.asList(Parameter.builder().key("Key2").value("Value2").build()))
+            .queryStringParameters(Arrays.asList(Parameter.builder().key("Key3").value("Value3").build()))
             .build();
 
     public static final AuthParameters authParametersBasicType = AuthParameters.builder()

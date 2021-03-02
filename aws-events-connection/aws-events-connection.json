@@ -2,6 +2,43 @@
   "typeName": "AWS::Events::Connection",
   "description": "Resource Type definition for AWS::Events::Connection.",
   "definitions": {
+    "AuthParameters": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 2,
+      "properties": {
+        "ApiKeyAuthParameters": {
+          "$ref": "#/definitions/ApiKeyAuthParameters"
+        },
+        "BasicAuthParameters": {
+          "$ref": "#/definitions/BasicAuthParameters"
+        },
+        "OAuthParameters": {
+          "$ref": "#/definitions/OAuthParameters"
+        },
+        "InvocationHttpParameters": {
+          "$ref": "#/definitions/ConnectionHttpParameters"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "BasicAuthParameters"
+          ]
+        },
+        {
+          "required": [
+            "OAuthParameters"
+          ]
+        },
+        {
+          "required": [
+            "ApiKeyAuthParameters"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
     "BasicAuthParameters": {
       "type": "object",
       "properties": {
@@ -38,7 +75,7 @@
           ]
         },
         "OAuthHttpParameters": {
-          "$ref": "#/definitions/HttpParameters"
+          "$ref": "#/definitions/ConnectionHttpParameters"
         }
       },
       "required": [
@@ -80,31 +117,31 @@
       ],
       "additionalProperties": false
     },
-    "HttpParameters": {
+    "ConnectionHttpParameters": {
       "type": "object",
       "properties": {
         "HeaderParameters": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Parameters"
+            "$ref": "#/definitions/Parameter"
           }
         },
         "QueryStringParameters": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Parameters"
+            "$ref": "#/definitions/Parameter"
           }
         },
         "BodyParameters": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Parameters"
+            "$ref": "#/definitions/Parameter"
           }
         }
       },
       "additionalProperties": false
     },
-    "Parameters": {
+    "Parameter": {
       "type": "object",
       "properties": {
         "Key": {
@@ -158,17 +195,17 @@
       "minProperties": 1,
       "maxProperties": 2,
       "properties": {
+        "ApiKeyAuthParameters": {
+          "$ref": "#/definitions/ApiKeyAuthParameters"
+        },
         "BasicAuthParameters": {
           "$ref": "#/definitions/BasicAuthParameters"
         },
         "OAuthParameters": {
           "$ref": "#/definitions/OAuthParameters"
         },
-        "ApiKeyAuthParameters": {
-          "$ref": "#/definitions/ApiKeyAuthParameters"
-        },
         "InvocationHttpParameters": {
-          "$ref": "#/definitions/HttpParameters"
+          "$ref": "#/definitions/ConnectionHttpParameters"
         }
       },
       "oneOf": [
