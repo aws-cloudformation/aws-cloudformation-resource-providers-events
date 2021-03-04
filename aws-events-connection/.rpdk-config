@@ -1,0 +1,25 @@
+{
+    "artifact_type": "RESOURCE",
+    "typeName": "AWS::Events::Connection",
+    "language": "java",
+    "runtime": "java11",
+    "entrypoint": "software.amazon.events.connection.HandlerWrapper::handleRequest",
+    "testEntrypoint": "software.amazon.events.connection.HandlerWrapper::testEntrypoint",
+    "settings": {
+        "version": false,
+        "subparser_name": null,
+        "verbose": 0,
+        "force": false,
+        "type_name": null,
+        "artifact_type": null,
+        "namespace": [
+            "software",
+            "amazon",
+            "events",
+            "connection"
+        ],
+        "codegen_template_path": "guided_aws",
+        "protocolVersion": "2.0.0"
+    },
+    "executableEntrypoint": "software.amazon.events.connection.HandlerWrapperExecutable"
+}

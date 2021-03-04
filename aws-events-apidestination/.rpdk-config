@@ -1,0 +1,25 @@
+{
+    "artifact_type": "RESOURCE",
+    "typeName": "AWS::Events::ApiDestination",
+    "language": "java",
+    "runtime": "java11",
+    "entrypoint": "software.amazon.events.apidestination.HandlerWrapper::handleRequest",
+    "testEntrypoint": "software.amazon.events.apidestination.HandlerWrapper::testEntrypoint",
+    "settings": {
+        "version": false,
+        "subparser_name": null,
+        "verbose": 0,
+        "force": false,
+        "type_name": null,
+        "artifact_type": null,
+        "namespace": [
+            "software",
+            "amazon",
+            "events",
+            "apidestination"
+        ],
+        "codegen_template_path": "guided_aws",
+        "protocolVersion": "2.0.0"
+    },
+    "executableEntrypoint": "software.amazon.events.apidestination.HandlerWrapperExecutable"
+}
