@@ -119,6 +119,7 @@
                 },
                 "HeaderParameters": {
                     "type": "object",
+                    "additionalProperties": false,
                     "patternProperties": {
                         "[a-zA-Z0-9]+": {
                             "type": "string"
@@ -127,6 +128,7 @@
                 },
                 "QueryStringParameters": {
                     "type": "object",
+                    "additionalProperties": false,
                     "patternProperties": {
                         "[a-zA-Z0-9]+": {
                             "type": "string"
@@ -182,6 +184,7 @@
                 },
                 "InputPathsMap": {
                     "type": "object",
+                    "additionalProperties": false,
                     "patternProperties": {
                         "[a-zA-Z0-9]+": {
                             "type": "string"
