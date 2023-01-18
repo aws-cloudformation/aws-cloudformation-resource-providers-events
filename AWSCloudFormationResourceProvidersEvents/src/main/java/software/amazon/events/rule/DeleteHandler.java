@@ -1,17 +1,18 @@
 package software.amazon.events.rule;
 
-// TODO: replace all usage of SdkClient with your service client type, e.g; YourServiceAsyncClient
-// import software.amazon.awssdk.services.yourservice.YourServiceAsyncClient;
-
 import software.amazon.awssdk.awscore.AwsResponse;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
+import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DeleteHandler extends BaseHandlerStd {
     private Logger logger;
@@ -24,71 +25,71 @@ public class DeleteHandler extends BaseHandlerStd {
         final Logger logger) {
 
         this.logger = logger;
-
-        // TODO: Adjust Progress Chain according to your implementation
-        // https://github.com/aws-cloudformation/cloudformation-cli-java-plugin/blob/master/src/main/java/software/amazon/cloudformation/proxy/CallChain.java
+        AtomicReference<ListTargetsByRuleResponse> listTargetsResponse = new AtomicReference<>();
 
         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
 
-            // STEP 1 [check if resource already exists]
-            // for more information -> https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-test-contract.html
-            // if target API does not support 'ResourceNotFoundException' then following check is required
+            // STEP 1 [List Targets]
             .then(progress ->
-                // STEP 1.0 [initialize a proxy context]
-                // If your service API does not return ResourceNotFoundException on delete requests against some identifier (e.g; resource Name)
-                // and instead returns a 200 even though a resource already deleted, you must first check if the resource exists here
-                // NOTE: If your service API throws 'ResourceNotFoundException' for delete requests this method is not necessary
-                proxy.initiate("AWS-Events-Rule::Delete::PreDeletionCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-
-                    // STEP 1.1 [initialize a proxy context]
-                    .translateToServiceRequest(Translator::translateToReadRequest)
-
-                    // STEP 1.2 [TODO: make an api call]
+                proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
                     .makeServiceCall((awsRequest, client) -> {
-                        AwsResponse awsResponse = null;
+                        try {
+                            listTargetsResponse.set(proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::listTargetsByRule));
 
-                        // TODO: add custom read resource logic
+                        } catch (final AwsServiceException e) {
+                            // TODO Make sure this is correct
+                            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
+                        }
 
-                        logger.log(String.format("%s has successfully been read.", ResourceModel.TYPE_NAME));
-                        return awsResponse;
-                    })
-
-                    // STEP 1.3 [TODO: handle exception]
-                    .handleError((awsRequest, exception, client, model, context) -> {
-                        // TODO: uncomment when ready to implement
-                        // if (exception instanceof ResourceNotFoundException)
-                        //     return ProgressEvent.success(model, context);
-                        // throw exception;
-                        return ProgressEvent.progress(model, context);
+                        logger.log(String.format("%s successfully read.", "AWS::Events::Target"));
+                        return null;
                     })
                     .progress()
             )
 
-            // STEP 2.0 [delete/stabilize progress chain - required for resource deletion]
+            // STEP 2 [Delete Targets]
             .then(progress ->
-                // If your service API throws 'ResourceNotFoundException' for delete requests then DeleteHandler can return just proxy.initiate construction
-                // STEP 2.0 [initialize a proxy context]
-                // Implement client invocation of the delete request through the proxyClient, which is already initialised with
-                // caller credentials, correct region and retry settings
-                proxy.initiate("AWS-Events-Rule::Delete", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-
-                    // STEP 2.1 [TODO: construct a body of a request]
-                    .translateToServiceRequest(Translator::translateToDeleteRequest)
-
-                    // STEP 2.2 [TODO: make an api call]
+                proxy.initiate("AWS-Events-Rule::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, listTargetsResponse.get()))
                     .makeServiceCall((awsRequest, client) -> {
-                        AwsResponse awsResponse = null;
-                        try {
 
-                            // TODO: put your delete resource code here
+                        AwsResponse awsResponse;
+
+                        try {
+                            awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::removeTargets);
 
                         } catch (final AwsServiceException e) {
-                            /*
-                            * While the handler contract states that the handler must always return a progress event,
-                            * you may throw any instance of BaseHandlerException, as the wrapper map it to a progress event.
-                            * Each BaseHandlerException maps to a specific error code, and you should map service exceptions as closely as possible
-                            * to more specific error codes
-                            */
+                            // TODO Make sure this is correct
+                            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
+                        }
+
+                        logger.log(String.format("%s successfully deleted.", "AWS::Events::Target"));
+                        return awsResponse;
+                    })
+
+                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> {
+                        final boolean stabilized = true;
+                        logger.log(String.format("%s deletion has stabilized: %s", "AWS::Events::Target", stabilized));
+                        return stabilized;
+                    })
+                    .progress()
+            )
+
+            // STEP 3 [Delete Rule]
+            .then(progress ->
+                proxy.initiate("AWS-Events-Rule::DeleteRule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(Translator::translateToDeleteRuleRequest)
+                    .makeServiceCall((awsRequest, client) -> {
+
+                        DeleteRuleResponse awsResponse;
+
+                        try {
+                            awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::deleteRule);
+
+                        } catch (final AwsServiceException e) {
+                            // TODO Make sure this is correct
                             throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
                         }
 
@@ -96,11 +97,8 @@ public class DeleteHandler extends BaseHandlerStd {
                         return awsResponse;
                     })
 
-                    // STEP 2.3 [TODO: stabilize step is not necessarily required but typically involves describing the resource until it is in a certain status, though it can take many forms]
-                    // for more information -> https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-test-contract.html
+                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
-                        // TODO: put your stabilization code here
-
                         final boolean stabilized = true;
                         logger.log(String.format("%s [%s] deletion has stabilized: %s", ResourceModel.TYPE_NAME, model.getPrimaryIdentifier(), stabilized));
                         return stabilized;
@@ -108,7 +106,7 @@ public class DeleteHandler extends BaseHandlerStd {
                     .progress()
             )
 
-            // STEP 3 [TODO: return the successful progress event without resource model]
+            // STEP 4 [TODO: return the successful progress event without resource model]
             .then(progress -> ProgressEvent.defaultSuccessHandler(null));
     }
 }

@@ -1,17 +1,20 @@
 package software.amazon.events.rule;
 
-// TODO: replace all usage of SdkClient with your service client type, e.g; YourServiceAsyncClient
-// import software.amazon.awssdk.services.yourservice.YourServiceAsyncClient;
-
+import org.apache.commons.collections4.CollectionUtils;
 import software.amazon.awssdk.awscore.AwsResponse;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.Target;
+
+import java.util.ArrayList;
 
 public class UpdateHandler extends BaseHandlerStd {
     private Logger logger;
@@ -25,116 +28,160 @@ public class UpdateHandler extends BaseHandlerStd {
 
         this.logger = logger;
 
-        // TODO: Adjust Progress Chain according to your implementation
-        // https://github.com/aws-cloudformation/cloudformation-cli-java-plugin/blob/master/src/main/java/software/amazon/cloudformation/proxy/CallChain.java
+        ArrayList<String> targetIdsToDelete = new ArrayList<>();
 
         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
 
             // STEP 1 [check if resource already exists]
-            // for more information -> https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-test-contract.html
-            // if target API does not support 'ResourceNotFoundException' then following check is required
             .then(progress ->
-                // STEP 1.0 [initialize a proxy context]
-                // If your service API does not return ResourceNotFoundException on update requests against some identifier (e.g; resource Name)
-                // and instead returns a 200 even though a resource does not exist, you must first check if the resource exists here
-                // NOTE: If your service API throws 'ResourceNotFoundException' for update requests this method is not necessary
                 proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-
-                    // STEP 1.1 [initialize a proxy context]
-                    .translateToServiceRequest(Translator::translateToReadRequest)
-
-                    // STEP 1.2 [TODO: make an api call]
+                    .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
                     .makeServiceCall((awsRequest, client) -> {
-                        AwsResponse awsResponse = null;
 
-                        // TODO: add custom read resource logic
-                        // If describe request does not return ResourceNotFoundException, you must throw ResourceNotFoundException based on
-                        // awsResponse values
+                        try {
+                            proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
+                        }
+                        catch (ResourceNotFoundException e) {
+                            throw new software.amazon.cloudformation.exceptions.ResourceNotFoundException(ResourceModel.TYPE_NAME, progress.getResourceModel().getName());
+                        }
 
                         logger.log(String.format("%s has successfully been read.", ResourceModel.TYPE_NAME));
-                        return awsResponse;
+                        return null;
                     })
                     .progress()
             )
 
-            // STEP 2 [first update/stabilize progress chain - required for resource update]
+            // STEP 2 [Update the Rule]
             .then(progress ->
-                // STEP 2.0 [initialize a proxy context]
-                // Implement client invocation of the update request through the proxyClient, which is already initialised with
-                // caller credentials, correct region and retry settings
-                proxy.initiate("AWS-Events-Rule::Update::first", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-
-                    // STEP 2.1 [TODO: construct a body of a request]
-                    .translateToServiceRequest(Translator::translateToFirstUpdateRequest)
-
-                    // STEP 2.2 [TODO: make an api call]
+                proxy.initiate("AWS-Events-Rule::Update::Rule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags()))
                     .makeServiceCall((awsRequest, client) -> {
-                        AwsResponse awsResponse = null;
-                        try {
 
-                            // TODO: put your update resource code here
+                        AwsResponse awsResponse;
+
+                        try {
+                            // Update Rule itself
+                            awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putRule);
 
                         } catch (final AwsServiceException e) {
-                            /*
-                            * While the handler contract states that the handler must always return a progress event,
-                            * you may throw any instance of BaseHandlerException, as the wrapper map it to a progress event.
-                            * Each BaseHandlerException maps to a specific error code, and you should map service exceptions as closely as possible
-                            * to more specific error codes
-                            */
+                            // TODO Make sure this is correct
                             throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
                         }
 
                         logger.log(String.format("%s has successfully been updated.", ResourceModel.TYPE_NAME));
                         return awsResponse;
                     })
-
-                    // STEP 2.3 [TODO: stabilize step is not necessarily required but typically involves describing the resource until it is in a certain status, though it can take many forms]
-                    // stabilization step may or may not be needed after each API call
-                    // for more information -> https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-test-contract.html
+                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
-                        // TODO: put your stabilization code here
 
                         final boolean stabilized = true;
 
                         logger.log(String.format("%s [%s] update has stabilized: %s", ResourceModel.TYPE_NAME, model.getPrimaryIdentifier(), stabilized));
                         return stabilized;
                     })
-                    .progress())
+                    .progress()
+            )
 
-            // If your resource is provisioned through multiple API calls, then the following pattern is required (and might take as many postUpdate callbacks as necessary)
-            // STEP 3 [second update/stabilize progress chain]
+            // STEP 3 [Get list of existing Targets]
             .then(progress ->
-                    // STEP 3.0 [initialize a proxy context]
-                    // If your resource is provisioned through multiple API calls, you will need to apply each subsequent update
-                    // step in a discrete call/stabilize chain to ensure the entire resource is provisioned as intended.
-                    proxy.initiate("AWS-Events-Rule::Update::second", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-
-                    // STEP 3.1 [TODO: construct a body of a request]
-                    .translateToServiceRequest(Translator::translateToSecondUpdateRequest)
-
-                    // STEP 3.2 [TODO: make an api call]
+                proxy.initiate("AWS-Events-Rule::Update::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
                     .makeServiceCall((awsRequest, client) -> {
-                        AwsResponse awsResponse = null;
+
                         try {
 
-                            // TODO: put your post update resource code here
+                            // List existing targets
+                            ListTargetsByRuleResponse existingTargetsResponse = proxyClient.injectCredentialsAndInvokeV2(
+                                    awsRequest,
+                                    proxyClient.client()::listTargetsByRule);
+
+                            // Create lists of ids
+                            ArrayList<String> existingTargetIds = new ArrayList<>();
+                            ArrayList<String> modelTargetIds = new ArrayList<>();
+
+                            // Build the list of Targets ids that already exist
+                            for (Target target : existingTargetsResponse.targets()) {
+                                existingTargetIds.add(target.id());
+                            }
+
+                            // Build the list of Targets ids that should exist after update
+                            for (Target target : Translator.translateToPutTargetsRequest(progress.getResourceModel()).targets()) {
+                                modelTargetIds.add(target.id());
+                            }
+
+                            // Subtract model target ids from existing target ids to get the list of Targets to delete
+                            targetIdsToDelete.addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
 
                         } catch (final AwsServiceException e) {
-                            /*
-                            * While the handler contract states that the handler must always return a progress event,
-                            * you may throw any instance of BaseHandlerException, as the wrapper map it to a progress event.
-                            * Each BaseHandlerException maps to a specific error code, and you should map service exceptions as closely as possible
-                            * to more specific error codes
-                            */
+                            // TODO Make sure this is correct
                             throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
                         }
 
-                        logger.log(String.format("%s has successfully been updated.", ResourceModel.TYPE_NAME));
-                        return awsResponse;
+                        logger.log(String.format("%s has successfully been read.", "AWS::Events::Target"));
+                        return null;
                     })
-                    .progress())
+                    .progress()
+            )
 
-            // STEP 4 [TODO: describe call/chain to return the resource model]
+            // STEP 4 [Delete Targets]
+            .then(progress ->
+                proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, targetIdsToDelete))
+                    .makeServiceCall((awsRequest, client) -> {
+
+                        try {
+                            // Delete targets that should not exist after update
+                            if (targetIdsToDelete.size() > 0) {
+                                proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::removeTargets);
+                            }
+                        } catch (final AwsServiceException e) {
+                            // TODO Make sure this is correct
+                            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
+                        }
+
+                        logger.log(String.format("%s has successfully been deleted.", "AWS::Events::Target"));
+                        return null;
+                    })
+
+                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> {
+                        final boolean stabilized = true;
+
+                        logger.log(String.format("%s delete has stabilized: %s", "AWS::Events::Target", stabilized));
+                        return stabilized;
+                    })
+                    .progress()
+            )
+
+            // STEP 5 [Create/Update Targets]
+            .then(progress ->
+                proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(Translator::translateToPutTargetsRequest)
+                    .makeServiceCall((awsRequest, client) -> {
+
+                        try {
+                            // Create resulting list of target ids
+                            proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
+
+                        } catch (final AwsServiceException e) {
+                            // TODO Make sure this is correct
+                        }
+
+                        logger.log(String.format("%s has successfully been updated.", "AWS::Events::Target"));
+                        return null;
+                    })
+
+                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> {
+                        final boolean stabilized = true;
+
+                        logger.log(String.format("%s update has stabilized: %s", "AWS::Events::Target", stabilized));
+                        return stabilized;
+                    })
+                    .progress()
+            )
+
+            // STEP 6 [TODO: describe call/chain to return the resource model]
             .then(progress -> new ReadHandler().handleRequest(proxy, request, callbackContext, proxyClient, logger));
     }
 }

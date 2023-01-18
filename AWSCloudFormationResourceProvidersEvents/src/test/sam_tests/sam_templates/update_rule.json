@@ -1,0 +1,29 @@
+{
+  "desiredResourceState": {
+    "Name": "eventsRule-TestRule",
+    "Description": "Updated sample description",
+    "EventPattern": {
+      "source": [
+        "aws.s3"
+      ],
+      "detail-type": [
+        "Object created"
+      ],
+      "detail": {
+        "bucket": {
+          "name": [
+            "testcdkstack-bucket43879c71-r2j3dsw4wp4z"
+          ]
+        }
+      }
+    },
+    "State": "ENABLED",
+    "Targets": [
+      {
+        "Id": "TestLambdaFunction",
+        "Arn": "arn:aws:lambda:us-west-2:643821976762:function:TestCdkStack-functionF19B1A04-RBwFkzzYvOYW"
+      }
+    ]
+  },
+  "previousResourceState": {}
+}
