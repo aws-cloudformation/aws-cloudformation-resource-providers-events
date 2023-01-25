@@ -14,10 +14,11 @@ import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ReadHandler extends BaseHandlerStd {
     private Logger logger;
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
@@ -29,7 +30,7 @@ public class ReadHandler extends BaseHandlerStd {
 
         this.logger = logger;
         final ResourceModel model = request.getDesiredResourceState();
-        ResourceModel.ResourceModelBuilder finalResourceModel = ResourceModel.builder();
+        AtomicReference<ResourceModel.ResourceModelBuilder> finalResourceModel = new AtomicReference<>();
 
         return ProgressEvent.progress(model, callbackContext)
 
@@ -40,35 +41,13 @@ public class ReadHandler extends BaseHandlerStd {
 
                     DescribeRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
 
-                    logger.log(String.format("%s has successfully been read.", ResourceModel.TYPE_NAME));
+                    logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                     return awsResponse;
                 })
-
-                // TODO
-                //.handleError()
-                // throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e); // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/commit/2077c92299aeb9a68ae8f4418b5e932b12a8b186#diff-5761e3a9f732dc1ef84103dc4bc93399R56-R63
-
+                .handleError(this::handleError )
                 .done(awsResponse -> {
-                    TypeReference<HashMap<String, Object>> typeRef = new TypeReference<HashMap<String, Object>>() {};
-                    HashMap<String, Object> eventPattern;
 
-                    try {
-                        eventPattern = objectMapper.readValue(
-                                awsResponse.eventPattern(),
-                                typeRef
-                        );
-                    } catch (JsonProcessingException e) {
-                        // TODO Make sure this is correct
-                        throw new RuntimeException(e);
-                    }
-
-                    finalResourceModel.description(awsResponse.description())
-                            .eventBusName(awsResponse.eventBusName())
-                            .eventPattern(eventPattern)
-                            .name(awsResponse.name())
-                            .roleArn(awsResponse.roleArn())
-                            .scheduleExpression(awsResponse.scheduleExpression())
-                            .state(awsResponse.scheduleExpression());
+                    finalResourceModel.set(Translator.translateFromReadResponse(awsResponse));
 
                     return ProgressEvent.progress(model, callbackContext);
                 })
@@ -81,166 +60,18 @@ public class ReadHandler extends BaseHandlerStd {
                     ListTargetsByRuleResponse awsResponse = null;
                     awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::listTargetsByRule);
 
-                    logger.log(String.format("%s has successfully been read.", "AWS::Events::Target"));
+                    logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), "AWS::Events::Target", awsResponse.targets().size()));
                     return awsResponse;
                 })
 
-                // TODO
-                //.handleError((awsRequest, exception, client, model, context) -> {
-                //    throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e); // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/commit/2077c92299aeb9a68ae8f4418b5e932b12a8b186#diff-5761e3a9f732dc1ef84103dc4bc93399R56-R63
-                //}
+                .handleError(this::handleError)
 
                 // Add the list of Targets to the Response
                 .done(awsResponse -> {
 
-                    Set<Target> targets = new HashSet<>();
+                    finalResourceModel.get().targets(Translator.translateFromResponseToTargets(awsResponse));
 
-                    if (awsResponse.targets() != null) {
-
-                        for (software.amazon.awssdk.services.cloudwatchevents.model.Target target : awsResponse.targets()) {
-                            Target thisTarget = new Target();
-
-                            Set<RunCommandTarget> runCommandTargets = new HashSet<>();
-
-                            BatchParameters.BatchParametersBuilder batchParametersBuilder = new BatchParameters.BatchParametersBuilder();
-                            BatchRetryStrategy.BatchRetryStrategyBuilder batchRetryStrategyBuilder = new BatchRetryStrategy.BatchRetryStrategyBuilder();
-                            BatchArrayProperties.BatchArrayPropertiesBuilder batchArrayPropertiesBuilder = new BatchArrayProperties.BatchArrayPropertiesBuilder();
-                            DeadLetterConfig.DeadLetterConfigBuilder deadLetterConfigBuilder = new DeadLetterConfig.DeadLetterConfigBuilder();
-                            EcsParameters.EcsParametersBuilder ecsParametersBuilder = new EcsParameters.EcsParametersBuilder();
-                            NetworkConfiguration.NetworkConfigurationBuilder networkConfigurationBuilder = new NetworkConfiguration.NetworkConfigurationBuilder();
-                            AwsVpcConfiguration.AwsVpcConfigurationBuilder awsVpcConfigurationBuilder = new AwsVpcConfiguration.AwsVpcConfigurationBuilder();
-                            HttpParameters.HttpParametersBuilder httpParametersBuilder = new HttpParameters.HttpParametersBuilder();
-                            InputTransformer.InputTransformerBuilder inputTransformerBuilder = new InputTransformer.InputTransformerBuilder();
-                            KinesisParameters.KinesisParametersBuilder kinesisParametersBuilder = new KinesisParameters.KinesisParametersBuilder();
-                            RedshiftDataParameters.RedshiftDataParametersBuilder redshiftDataParametersBuilder = new RedshiftDataParameters.RedshiftDataParametersBuilder();
-                            RetryPolicy.RetryPolicyBuilder retryPolicyBuilder = new RetryPolicy.RetryPolicyBuilder();
-                            RunCommandParameters.RunCommandParametersBuilder runCommandParametersBuilder = new RunCommandParameters.RunCommandParametersBuilder();
-                            SqsParameters.SqsParametersBuilder sqsParametersBuilder = new SqsParameters.SqsParametersBuilder();
-
-                            if (target.batchParameters() != null) {
-
-                                batchRetryStrategyBuilder.attempts(target.batchParameters().retryStrategy() != null
-                                        ? target.batchParameters().retryStrategy().attempts()
-                                        : null);
-
-                                batchArrayPropertiesBuilder.size(target.batchParameters().arrayProperties() != null
-                                        ? target.batchParameters().arrayProperties().size()
-                                        : null);
-
-                                batchParametersBuilder.jobName(target.batchParameters().jobName());
-                                batchParametersBuilder.retryStrategy(batchRetryStrategyBuilder.build());
-                                batchParametersBuilder.arrayProperties(batchArrayPropertiesBuilder.build());
-                                batchParametersBuilder.jobDefinition(target.batchParameters().jobDefinition());
-
-                                thisTarget.setBatchParameters(batchParametersBuilder.build());
-                            }
-
-                            if (target.deadLetterConfig() != null) {
-                                deadLetterConfigBuilder.arn(target.deadLetterConfig().arn());
-
-                                thisTarget.setDeadLetterConfig(deadLetterConfigBuilder.build());
-                            }
-
-                            if (target.ecsParameters() != null) {
-                                if (target.ecsParameters().networkConfiguration() != null && target.ecsParameters().networkConfiguration().awsvpcConfiguration() != null) {
-                                    awsVpcConfigurationBuilder.securityGroups(target.ecsParameters().networkConfiguration().awsvpcConfiguration().securityGroups() != null
-                                            ? new HashSet<>(target.ecsParameters().networkConfiguration().awsvpcConfiguration().securityGroups())
-                                            : null);
-                                    awsVpcConfigurationBuilder.subnets(target.ecsParameters().networkConfiguration().awsvpcConfiguration().subnets() != null
-                                            ? new HashSet<>(target.ecsParameters().networkConfiguration().awsvpcConfiguration().subnets())
-                                            : null);
-                                    awsVpcConfigurationBuilder.assignPublicIp(target.ecsParameters().networkConfiguration().awsvpcConfiguration().assignPublicIpAsString());
-
-                                    networkConfigurationBuilder.awsVpcConfiguration(awsVpcConfigurationBuilder.build());
-                                }
-
-                                ecsParametersBuilder.platformVersion(target.ecsParameters().platformVersion());
-                                ecsParametersBuilder.group(target.ecsParameters().group());
-                                ecsParametersBuilder.taskCount(target.ecsParameters().taskCount());
-                                ecsParametersBuilder.launchType(target.ecsParameters().launchTypeAsString());
-                                ecsParametersBuilder.networkConfiguration(networkConfigurationBuilder.build());
-                                ecsParametersBuilder.taskDefinitionArn(target.ecsParameters().taskDefinitionArn());
-
-                                thisTarget.setEcsParameters(ecsParametersBuilder.build());
-                            }
-
-                            if (target.httpParameters() != null) {
-                                httpParametersBuilder.pathParameterValues(target.httpParameters().pathParameterValues() != null
-                                        ? new HashSet<>(target.httpParameters().pathParameterValues())
-                                        : null);
-                                httpParametersBuilder.headerParameters(target.httpParameters().headerParameters());
-                                httpParametersBuilder.queryStringParameters(target.httpParameters().queryStringParameters());
-
-                                thisTarget.setHttpParameters(httpParametersBuilder.build());
-                            }
-
-                            if (target.inputTransformer() != null) {
-                                inputTransformerBuilder.inputTemplate(target.inputTransformer().inputTemplate());
-                                inputTransformerBuilder.inputPathsMap(target.inputTransformer().inputPathsMap());
-
-                                thisTarget.setInputTransformer(inputTransformerBuilder.build());
-                            }
-
-                            if (target.kinesisParameters() != null) {
-                                kinesisParametersBuilder.partitionKeyPath(target.kinesisParameters().partitionKeyPath());
-
-                                thisTarget.setKinesisParameters(kinesisParametersBuilder.build());
-                            }
-
-                            if (target.redshiftDataParameters() != null) {
-                                redshiftDataParametersBuilder.statementName(target.redshiftDataParameters().statementName());
-                                redshiftDataParametersBuilder.database(target.redshiftDataParameters().database());
-                                redshiftDataParametersBuilder.secretManagerArn(target.redshiftDataParameters().secretManagerArn());
-                                redshiftDataParametersBuilder.dbUser(target.redshiftDataParameters().dbUser());
-                                redshiftDataParametersBuilder.sql(target.redshiftDataParameters().sql());
-                                redshiftDataParametersBuilder.withEvent(target.redshiftDataParameters().withEvent());
-
-                                thisTarget.setRedshiftDataParameters(redshiftDataParametersBuilder.build());
-                            }
-
-                            if (target.retryPolicy() != null) {
-                                retryPolicyBuilder.maximumEventAgeInSeconds(target.retryPolicy().maximumEventAgeInSeconds());
-                                retryPolicyBuilder.maximumRetryAttempts(target.retryPolicy().maximumRetryAttempts());
-
-                                thisTarget.setRetryPolicy(retryPolicyBuilder.build());
-                            }
-
-                            if (target.runCommandParameters() != null) {
-                                for (software.amazon.awssdk.services.cloudwatchevents.model.RunCommandTarget runCommandTarget : target.runCommandParameters().runCommandTargets()) {
-                                    runCommandTargets.add(new RunCommandTarget.RunCommandTargetBuilder()
-                                            .values(new HashSet<>(runCommandTarget.values()))
-                                            .key(runCommandTarget.key())
-                                            .build()
-                                    );
-                                }
-
-                                if (runCommandTargets.size() > 0) {
-                                    runCommandParametersBuilder.runCommandTargets(runCommandTargets);
-
-                                    thisTarget.setRunCommandParameters(runCommandParametersBuilder.build());
-                                }
-                            }
-
-                            if (target.sqsParameters() != null) {
-                                sqsParametersBuilder.messageGroupId(target.sqsParameters().messageGroupId());
-
-                                thisTarget.setSqsParameters(sqsParametersBuilder.build());
-                            }
-
-                            thisTarget.setArn(target.arn());
-                            thisTarget.setId(target.id());
-                            thisTarget.setInput(target.input());
-                            thisTarget.setInputPath(target.inputPath());
-                            thisTarget.setRoleArn(target.roleArn());
-                            //thisTarget.setSageMakerPipelineParameters(target.sageMakerPipelineParameters()); FIXME Not supported
-
-                            targets.add(thisTarget);
-                        }
-
-                        finalResourceModel.targets(targets);
-                    }
-
-                    return ProgressEvent.defaultSuccessHandler(finalResourceModel.build());
+                    return ProgressEvent.defaultSuccessHandler(finalResourceModel.get().build());
                 })
             );
     }

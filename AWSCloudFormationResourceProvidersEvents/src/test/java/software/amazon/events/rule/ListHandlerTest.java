@@ -1,5 +1,7 @@
 package software.amazon.events.rule;
 
+import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesResponse;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.OperationStatus;
@@ -13,6 +15,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 public class ListHandlerTest {
@@ -33,7 +37,18 @@ public class ListHandlerTest {
     public void handleRequest_SimpleSuccess() {
         final ListHandler handler = new ListHandler();
 
+        // MODEL
+
         final ResourceModel model = ResourceModel.builder().build();
+
+        // MOCK
+
+        final ListRulesResponse listRulesResponse = ListRulesResponse.builder().build();
+
+        when(proxy.injectCredentialsAndInvokeV2(any(ListRulesRequest.class), any()))
+                .thenReturn(listRulesResponse);
+
+        // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
             .desiredResourceState(model)

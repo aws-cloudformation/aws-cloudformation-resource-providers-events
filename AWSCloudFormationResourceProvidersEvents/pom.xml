@@ -167,7 +167,7 @@
                         <exclude>**/HandlerWrapper*</exclude>
                         <exclude>**/ResourceModel*</exclude>
                         <exclude>**/BaseConfiguration*</exclude>
-<!--                        <exclude>**/BaseHandler*</exclude>-->
+                        <exclude>**/BaseHandler*</exclude>
                         <exclude>**/ResourceModel*</exclude>
                     </excludes>
                 </configuration>

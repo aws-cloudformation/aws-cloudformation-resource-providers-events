@@ -1,11 +1,13 @@
 package software.amazon.events.rule;
 
 import org.apache.commons.collections4.CollectionUtils;
+import software.amazon.awssdk.awscore.AwsRequest;
 import software.amazon.awssdk.awscore.AwsResponse;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
 import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
@@ -38,16 +40,12 @@ public class UpdateHandler extends BaseHandlerStd {
                     .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
                     .makeServiceCall((awsRequest, client) -> {
 
-                        try {
-                            proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
-                        }
-                        catch (ResourceNotFoundException e) {
-                            throw new software.amazon.cloudformation.exceptions.ResourceNotFoundException(ResourceModel.TYPE_NAME, progress.getResourceModel().getName());
-                        }
+                        proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
 
-                        logger.log(String.format("%s has successfully been read.", ResourceModel.TYPE_NAME));
+                        logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                         return null;
                     })
+                    .handleError(this::handleError)
                     .progress()
             )
 
@@ -59,16 +57,10 @@ public class UpdateHandler extends BaseHandlerStd {
 
                         AwsResponse awsResponse;
 
-                        try {
-                            // Update Rule itself
-                            awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putRule);
+                        // Update Rule itself
+                        awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putRule);
 
-                        } catch (final AwsServiceException e) {
-                            // TODO Make sure this is correct
-                            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
-                        }
-
-                        logger.log(String.format("%s has successfully been updated.", ResourceModel.TYPE_NAME));
+                        logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                         return awsResponse;
                     })
                     // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
@@ -76,9 +68,10 @@ public class UpdateHandler extends BaseHandlerStd {
 
                         final boolean stabilized = true;
 
-                        logger.log(String.format("%s [%s] update has stabilized: %s", ResourceModel.TYPE_NAME, model.getPrimaryIdentifier(), stabilized));
+                        logger.log(String.format("StackId: %s: %s [%s] update has stabilized: %s", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name(), stabilized));
                         return stabilized;
                     })
+                    .handleError(this::handleError)
                     .progress()
             )
 
@@ -88,38 +81,36 @@ public class UpdateHandler extends BaseHandlerStd {
                     .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
                     .makeServiceCall((awsRequest, client) -> {
 
-                        try {
+                        // List existing targets
+                        ListTargetsByRuleResponse existingTargetsResponse = proxyClient.injectCredentialsAndInvokeV2(
+                                awsRequest,
+                                proxyClient.client()::listTargetsByRule);
 
-                            // List existing targets
-                            ListTargetsByRuleResponse existingTargetsResponse = proxyClient.injectCredentialsAndInvokeV2(
-                                    awsRequest,
-                                    proxyClient.client()::listTargetsByRule);
+                        // Create lists of ids
+                        ArrayList<String> existingTargetIds = new ArrayList<>();
+                        ArrayList<String> modelTargetIds = new ArrayList<>();
 
-                            // Create lists of ids
-                            ArrayList<String> existingTargetIds = new ArrayList<>();
-                            ArrayList<String> modelTargetIds = new ArrayList<>();
-
-                            // Build the list of Targets ids that already exist
+                        // Build the list of Targets ids that already exist
+                        if (existingTargetsResponse.targets() != null) {
                             for (Target target : existingTargetsResponse.targets()) {
                                 existingTargetIds.add(target.id());
                             }
+                        }
 
-                            // Build the list of Targets ids that should exist after update
+                        // Build the list of Targets ids that should exist after update
+                        if (progress.getResourceModel().getTargets() != null) {
                             for (Target target : Translator.translateToPutTargetsRequest(progress.getResourceModel()).targets()) {
                                 modelTargetIds.add(target.id());
                             }
-
-                            // Subtract model target ids from existing target ids to get the list of Targets to delete
-                            targetIdsToDelete.addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
-
-                        } catch (final AwsServiceException e) {
-                            // TODO Make sure this is correct
-                            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
                         }
 
-                        logger.log(String.format("%s has successfully been read.", "AWS::Events::Target"));
+                        // Subtract model target ids from existing target ids to get the list of Targets to delete
+                        targetIdsToDelete.addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
+
+                        logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), "AWS::Events::Target", existingTargetsResponse.targets().size()));
                         return null;
                     })
+                    .handleError(this::handleError)
                     .progress()
             )
 
@@ -129,17 +120,11 @@ public class UpdateHandler extends BaseHandlerStd {
                     .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, targetIdsToDelete))
                     .makeServiceCall((awsRequest, client) -> {
 
-                        try {
-                            // Delete targets that should not exist after update
-                            if (targetIdsToDelete.size() > 0) {
-                                proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::removeTargets);
-                            }
-                        } catch (final AwsServiceException e) {
-                            // TODO Make sure this is correct
-                            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
+                        // Delete targets that should not exist after update
+                        if (targetIdsToDelete.size() > 0) {
+                            proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::removeTargets);
                         }
-
-                        logger.log(String.format("%s has successfully been deleted.", "AWS::Events::Target"));
+                        logger.log(String.format("StackId: %s: %s [%s] has successfully been deleted.", request.getStackId(), "AWS::Events::Target", targetIdsToDelete));
                         return null;
                     })
 
@@ -147,37 +132,46 @@ public class UpdateHandler extends BaseHandlerStd {
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
                         final boolean stabilized = true;
 
-                        logger.log(String.format("%s delete has stabilized: %s", "AWS::Events::Target", stabilized));
+                        logger.log(String.format("StackId: %s: %s [%s] delete has stabilized: %s", request.getStackId(), "AWS::Events::Target", targetIdsToDelete, stabilized));
                         return stabilized;
                     })
+                    .handleError(this::handleError)
                     .progress()
             )
 
             // STEP 5 [Create/Update Targets]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToPutTargetsRequest)
+                    .translateToServiceRequest(Translator::dummmyTranslator)
                     .makeServiceCall((awsRequest, client) -> {
+                        PutTargetsResponse awsResponse = null;
 
-                        try {
+                        if (progress.getResourceModel().getTargets() != null) {
+                            awsRequest = Translator.translateToPutTargetsRequest(progress.getResourceModel());
+
                             // Create resulting list of target ids
-                            proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
+                            awsResponse = proxyClient.injectCredentialsAndInvokeV2((PutTargetsRequest) awsRequest, proxyClient.client()::putTargets);
 
-                        } catch (final AwsServiceException e) {
-                            // TODO Make sure this is correct
+                            if (awsResponse.hasFailedEntries()) {
+                                throw new CfnGeneralServiceException("Target(s) failed to deploy");
+                            }
+
+                            logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", request.getStackId(), "AWS::Events::Target", ((PutTargetsRequest) awsRequest).targets().size()));
                         }
-
-                        logger.log(String.format("%s has successfully been updated.", "AWS::Events::Target"));
-                        return null;
+                        return awsResponse;
                     })
 
                     // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
                         final boolean stabilized = true;
 
-                        logger.log(String.format("%s update has stabilized: %s", "AWS::Events::Target", stabilized));
+                        if (progress.getResourceModel().getTargets() != null) {
+
+                            logger.log(String.format("StackId: %s: %s [%s] update has stabilized: %s", request.getStackId(), "AWS::Events::Target", progress.getResourceModel().getTargets().size(), stabilized));
+                        }
                         return stabilized;
                     })
+                    .handleError(this::handleError)
                     .progress()
             )
 

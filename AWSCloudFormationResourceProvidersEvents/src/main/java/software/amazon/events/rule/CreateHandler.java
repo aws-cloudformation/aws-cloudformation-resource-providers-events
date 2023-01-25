@@ -1,8 +1,12 @@
 package software.amazon.events.rule;
 
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.*;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.cloudformation.exceptions.CfnAlreadyExistsException;
+import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
@@ -40,7 +44,7 @@ public class CreateHandler extends BaseHandlerStd {
                         // All goood...
                     }
 
-                    logger.log(String.format("%s has successfully been read.", ResourceModel.TYPE_NAME));
+                    logger.log(String.format("StackId: %s: %s [%s] does not yet exist.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                     return null;
                 })
                 .progress()
@@ -54,14 +58,9 @@ public class CreateHandler extends BaseHandlerStd {
 
                         PutRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putRule);
 
-                        logger.log(String.format("%s successfully created.", ResourceModel.TYPE_NAME));
+                        logger.log(String.format("StackId: %s: %s [%s] successfully created.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                         return awsResponse;
                     })
-
-                    // TODO
-                    //.handleError()
-                    //throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
-
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
 
                         boolean stabilized;
@@ -77,9 +76,10 @@ public class CreateHandler extends BaseHandlerStd {
                             stabilized = false;
                         }
 
-                        logger.log(String.format("%s [%s] has been stabilized.", ResourceModel.TYPE_NAME, model.getPrimaryIdentifier()));
+                        logger.log(String.format("StackId: %s: %s [%s] has been stabilized: %s", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name(), stabilized));
                         return stabilized;
                     })
+                    .handleError(this::handleError)
                     .progress()
                 )
 
@@ -89,14 +89,13 @@ public class CreateHandler extends BaseHandlerStd {
                     .makeServiceCall(((awsRequest, client) -> {
                         PutTargetsResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
 
-                        logger.log(String.format("%s successfully created.", "AWS::Events::Target"));
+                        if (awsResponse.hasFailedEntries()) {
+                            throw new CfnGeneralServiceException("Target(s) failed to deploy");
+                        }
+
+                        logger.log(String.format("StackId: %s: %s [%s] successfully created.", request.getStackId(), "AWS::Events::Target", awsRequest.targets().size()));
                         return awsResponse;
                     }))
-
-                    // TODO
-                     //.handleError()
-                    //throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
-
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
 
                         boolean stabilized;
@@ -123,9 +122,10 @@ public class CreateHandler extends BaseHandlerStd {
                             stabilized = false;
                         }
 
-                        logger.log(String.format("%s have been stabilized.", "AWS::Events::Target"));
+                        logger.log(String.format("StackId: %s: %s [%s] have been stabilized: %s", request.getStackId(), "AWS::Events::Target", awsRequest.targets().size(), stabilized));
                         return stabilized;
                     })
+                    .handleError(this::handleError)
                     .progress()
                 )
 
