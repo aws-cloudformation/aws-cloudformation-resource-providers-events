@@ -1,13 +1,18 @@
 package software.amazon.events.rule;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.cloudformation.exceptions.CfnAlreadyExistsException;
 import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
+import software.amazon.cloudformation.exceptions.CfnInternalFailureException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
+import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
@@ -18,6 +23,8 @@ import java.util.HashSet;
 
 public class CreateHandler extends BaseHandlerStd {
     private Logger logger;
+
+    public static final int MAX_RETRIES_ON_PUT_TARGETS = 5;
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
         final AmazonWebServicesClientProxy proxy,
@@ -35,19 +42,28 @@ public class CreateHandler extends BaseHandlerStd {
                 proxy.initiate("AWS-Events-Rule::Create::PreExistanceCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                 .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
                 .makeServiceCall((awsRequest, client) -> {
+                    DescribeRuleResponse awsResponse;
 
                     try {
-                        proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
-                        throw new CfnAlreadyExistsException(ResourceModel.TYPE_NAME, progress.getResourceModel().getName());
+                        awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
                     }
                     catch (ResourceNotFoundException e) {
                         // All goood...
+                        awsResponse = null;
                     }
 
                     logger.log(String.format("StackId: %s: %s [%s] does not yet exist.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
-                    return null;
+                    return awsResponse;
                 })
-                .progress()
+                .done(awsResponse -> {
+
+                    if (awsResponse == null) {
+                        return ProgressEvent.progress(progress.getResourceModel(), callbackContext);
+                    } else {
+                        return ProgressEvent.failed(progress.getResourceModel(), null, HandlerErrorCode.AlreadyExists,
+                                String.format("%s already exists", progress.getResourceModel().getName()));
+                    }
+                })
             )
 
             // STEP 2 [create/stabilize progress chain - required for resource creation]
@@ -89,10 +105,6 @@ public class CreateHandler extends BaseHandlerStd {
                     .makeServiceCall(((awsRequest, client) -> {
                         PutTargetsResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
 
-                        if (awsResponse.hasFailedEntries()) {
-                            throw new CfnGeneralServiceException("Target(s) failed to deploy");
-                        }
-
                         logger.log(String.format("StackId: %s: %s [%s] successfully created.", request.getStackId(), "AWS::Events::Target", awsRequest.targets().size()));
                         return awsResponse;
                     }))
@@ -100,7 +112,18 @@ public class CreateHandler extends BaseHandlerStd {
 
                         boolean stabilized;
 
-                        try {
+                        if (awsResponse.hasFailedEntries()) {
+                            if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
+                                callbackContext.setRetryAttemptsForPutTargets(callbackContext.getRetryAttemptsForPutTargets() + 1);
+                                awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
+                                stabilized = false;
+                            } else {
+                                throw AwsServiceException.builder()
+                                        .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries").build())
+                                        .build();
+                            }
+                        }
+                        else {
                             ListTargetsByRuleResponse listTargetsResponse =  proxyClient.injectCredentialsAndInvokeV2(
                                     Translator.translateToListTargetsByRuleRequest(model),
                                     proxyClient.client()::listTargetsByRule);
@@ -117,9 +140,6 @@ public class CreateHandler extends BaseHandlerStd {
                                     break;
                                 }
                             }
-                        }
-                        catch (ResourceNotFoundException e) {
-                            stabilized = false;
                         }
 
                         logger.log(String.format("StackId: %s: %s [%s] have been stabilized: %s", request.getStackId(), "AWS::Events::Target", awsRequest.targets().size(), stabilized));

@@ -151,6 +151,91 @@ public class ReadHandlerTest extends AbstractTestBase {
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
 
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isEqualTo(resultModel);
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isNull();
+        assertThat(response.getErrorCode()).isNull();
+    }
+
+    @Test
+    public void handleRequest_NoTargets() {
+        final ReadHandler handler = new ReadHandler();
+
+        String eventPatternString = String.join("",
+                "{",
+                "  \"source\": [",
+                "    \"aws.s3\"",
+                "  ],",
+                "  \"detail-type\": [",
+                "    \"Object created\"",
+                "  ],",
+                "  \"detail\": {",
+                "    \"bucket\": {",
+                "      \"name\": [",
+                "        \"testcdkstack-bucket43879c71-r2j3dsw4wp4z\"",
+                "      ]",
+                "    }",
+                "  }",
+                "}");
+
+        Map<String, Object> eventMapperMap = null;
+        try {
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        // MODEL
+
+        final ResourceModel model = ResourceModel.builder()
+                .name("TestRule")
+                .build();
+
+        final ResourceModel resultModel = ResourceModel.builder()
+                .name(model.getName())
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .build();
+
+        // MOCK
+
+        /*
+        describeRule
+        listTargetsByRule
+         */
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .name(resultModel.getName())
+                .description(resultModel.getDescription())
+                .eventPattern(eventPatternString)
+                .state(resultModel.getState())
+                .build();
+
+        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
+                .build();
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenReturn(describeRuleResponse);
+
+        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
+                .thenReturn(listTargetsByRuleResponse);
+
+        //RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+
+        // ASSERT
+
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);

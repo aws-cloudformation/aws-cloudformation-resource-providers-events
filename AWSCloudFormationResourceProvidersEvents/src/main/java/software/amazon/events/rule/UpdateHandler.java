@@ -3,6 +3,8 @@ package software.amazon.events.rule;
 import org.apache.commons.collections4.CollectionUtils;
 import software.amazon.awssdk.awscore.AwsRequest;
 import software.amazon.awssdk.awscore.AwsResponse;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
@@ -10,6 +12,7 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
 import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
+import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
@@ -20,6 +23,8 @@ import java.util.ArrayList;
 
 public class UpdateHandler extends BaseHandlerStd {
     private Logger logger;
+
+    public static final int MAX_RETRIES_ON_PUT_TARGETS = 5;
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
         final AmazonWebServicesClientProxy proxy,
@@ -91,7 +96,7 @@ public class UpdateHandler extends BaseHandlerStd {
                         ArrayList<String> modelTargetIds = new ArrayList<>();
 
                         // Build the list of Targets ids that already exist
-                        if (existingTargetsResponse.targets() != null) {
+                        if (existingTargetsResponse.hasTargets()) {
                             for (Target target : existingTargetsResponse.targets()) {
                                 existingTargetIds.add(target.id());
                             }
@@ -152,10 +157,6 @@ public class UpdateHandler extends BaseHandlerStd {
                             // Create resulting list of target ids
                             awsResponse = proxyClient.injectCredentialsAndInvokeV2((PutTargetsRequest) awsRequest, proxyClient.client()::putTargets);
 
-                            if (awsResponse.hasFailedEntries()) {
-                                throw new CfnGeneralServiceException("Target(s) failed to deploy");
-                            }
-
                             logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", request.getStackId(), "AWS::Events::Target", ((PutTargetsRequest) awsRequest).targets().size()));
                         }
                         return awsResponse;
@@ -163,12 +164,33 @@ public class UpdateHandler extends BaseHandlerStd {
 
                     // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
-                        final boolean stabilized = true;
+                        boolean stabilized;
 
                         if (progress.getResourceModel().getTargets() != null) {
 
+                            if (awsResponse.hasFailedEntries()) {
+                                if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
+                                    callbackContext.setRetryAttemptsForPutTargets(callbackContext.getRetryAttemptsForPutTargets() + 1);
+                                    awsRequest = Translator.translateToPutTargetsRequest(progress.getResourceModel());
+                                    awsResponse = proxyClient.injectCredentialsAndInvokeV2((PutTargetsRequest) awsRequest, proxyClient.client()::putTargets);
+
+                                    stabilized = false;
+                                } else {
+                                    throw AwsServiceException.builder()
+                                            .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries").build())
+                                            .build();
+                                }
+                            }
+                            else {
+                                stabilized = true;
+                            }
+
                             logger.log(String.format("StackId: %s: %s [%s] update has stabilized: %s", request.getStackId(), "AWS::Events::Target", progress.getResourceModel().getTargets().size(), stabilized));
                         }
+                        else {
+                            stabilized = true;
+                        }
+
                         return stabilized;
                     })
                     .handleError(this::handleError)

@@ -2,6 +2,7 @@ package software.amazon.events.rule;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import software.amazon.awssdk.awscore.AwsResponse;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
@@ -69,7 +70,9 @@ public class ReadHandler extends BaseHandlerStd {
                 // Add the list of Targets to the Response
                 .done(awsResponse -> {
 
-                    finalResourceModel.get().targets(Translator.translateFromResponseToTargets(awsResponse));
+                    if (awsResponse.hasTargets()) {
+                        finalResourceModel.get().targets(Translator.translateFromResponseToTargets(awsResponse));
+                    }
 
                     return ProgressEvent.defaultSuccessHandler(finalResourceModel.get().build());
                 })

@@ -2,6 +2,7 @@ package software.amazon.events.rule;
 
 import static java.util.Objects.requireNonNull;
 
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.CloudWatchEventsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ConcurrentModificationException;
@@ -84,6 +85,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     } else if (e instanceof CfnAlreadyExistsException) {
       // if you do a CREATE with an existing name, you get BadRequestException
       return ProgressEvent.defaultFailureHandler(e, HandlerErrorCode.AlreadyExists);
+    } else if (e instanceof AwsServiceException) {
+      if (((AwsServiceException) e).awsErrorDetails().equals("")) {
+        ex = new CfnInternalFailureException(e);
+      } else {
+        ex = new CfnGeneralServiceException(e);
+      }
     } else { // InternalException
       ex = new CfnGeneralServiceException(e);
     }

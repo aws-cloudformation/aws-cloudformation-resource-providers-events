@@ -21,10 +21,12 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResultEntry;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.cloudformation.exceptions.CfnAlreadyExistsException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
+import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
@@ -118,14 +120,13 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .build();
 
         // MOCK
+
         /*
         describeRule
         putRule
+        describeRule
         putTargets
         listTargetsByRule
-        listRules
-        removeTargets
-        deleteRule
          */
 
         Collection<Target> responseTargets = new ArrayList<>();
@@ -150,13 +151,16 @@ public class CreateHandlerTest extends AbstractTestBase {
         final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
                 .build();
 
-        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
+        final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
+                .build();
+
+        final ListTargetsByRuleResponse listTargetsByRuleResponse2 = ListTargetsByRuleResponse.builder()
                 .targets(responseTargets)
                 .build();
 
         when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
                 .thenThrow(ResourceNotFoundException.class)
-                .thenReturn(describeRuleResponse)
+                .thenThrow(ResourceNotFoundException.class)
                 .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
@@ -166,7 +170,8 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .thenReturn(putTargetsResponse);
 
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse);
+                .thenReturn(listTargetsByRuleResponse1)
+                .thenReturn(listTargetsByRuleResponse2);
 
         // RUN
 
@@ -176,6 +181,8 @@ public class CreateHandlerTest extends AbstractTestBase {
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
 
+        // ASSERT
+
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
@@ -184,4 +191,205 @@ public class CreateHandlerTest extends AbstractTestBase {
         assertThat(response.getMessage()).isNull();
         assertThat(response.getErrorCode()).isNull();
     }
+
+    @Test
+    public void handleRequest_CreateTargetsFail() {
+        final CreateHandler handler = new CreateHandler();
+
+        String eventPatternString = String.join("",
+                "{",
+                "  \"source\": [",
+                "    \"aws.s3\"",
+                "  ],",
+                "  \"detail-type\": [",
+                "    \"Object created\"",
+                "  ],",
+                "  \"detail\": {",
+                "    \"bucket\": {",
+                "      \"name\": [",
+                "        \"testcdkstack-bucket43879c71-r2j3dsw4wp4z\"",
+                "      ]",
+                "    }",
+                "  }",
+                "}");
+
+        Map<String, Object> eventMapperMap = null;
+        try {
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        // MODEL
+
+        Set<software.amazon.events.rule.Target> targets = new HashSet<>();
+
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("TestLambdaFunctionId")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId")
+                .build());
+
+        final ResourceModel model = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(targets)
+                .build();
+
+        // MOCK
+
+        /*
+        describeRule
+        putRule
+        describeRule
+        putTargets
+        listTargetsByRule
+         */
+
+        Collection<Target> responseTargets = new ArrayList<>();
+        for (software.amazon.events.rule.Target target : model.getTargets()) {
+            responseTargets.add(Target.builder()
+                    .id(target.getId())
+                    .arn(target.getArn())
+                    .build());
+        }
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .name(model.getName())
+                .description(model.getDescription())
+                .eventPattern(eventPatternString)
+                .state(model.getState())
+                .build();
+
+        final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
+                .ruleArn("arn")
+                .build();
+
+
+        final Collection<PutTargetsResultEntry> PutTargetsResultEntries = new ArrayList<>();
+        for (software.amazon.events.rule.Target target : model.getTargets()) {
+            PutTargetsResultEntries.add(PutTargetsResultEntry.builder()
+                    .targetId(target.getId())
+                    .build());
+        }
+
+        final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
+                .failedEntries(PutTargetsResultEntries)
+                .build();
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenThrow(ResourceNotFoundException.class)
+                .thenThrow(ResourceNotFoundException.class)
+                .thenReturn(describeRuleResponse);
+
+        when(proxyClient.client().putRule(any(PutRuleRequest.class)))
+                .thenReturn(putRuleResponse);
+
+        when(proxyClient.client().putTargets(any(PutTargetsRequest.class)))
+                .thenReturn(putTargetsResponse);
+
+        // RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isNull();
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.InternalFailure);
+    }
+
+    @Test
+    public void handleRequest_CreateRuleFail() {
+        final CreateHandler handler = new CreateHandler();
+
+        String eventPatternString = String.join("",
+                "{",
+                "  \"source\": [",
+                "    \"aws.s3\"",
+                "  ],",
+                "  \"detail-type\": [",
+                "    \"Object created\"",
+                "  ],",
+                "  \"detail\": {",
+                "    \"bucket\": {",
+                "      \"name\": [",
+                "        \"testcdkstack-bucket43879c71-r2j3dsw4wp4z\"",
+                "      ]",
+                "    }",
+                "  }",
+                "}");
+
+        Map<String, Object> eventMapperMap = null;
+        try {
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        // MODEL
+
+        Set<software.amazon.events.rule.Target> targets = new HashSet<>();
+
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("TestLambdaFunctionId")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId")
+                .build());
+
+        final ResourceModel model = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(targets)
+                .build();
+
+        // MOCK
+
+        /*
+        describeRule
+        putRule
+        describeRule
+        putTargets
+        listTargetsByRule
+         */
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .name(model.getName())
+                .description(model.getDescription())
+                .eventPattern(eventPatternString)
+                .state(model.getState())
+                .build();
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenReturn(describeRuleResponse);
+
+        // RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isEqualTo("TestRule already exists");
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.AlreadyExists);
+    }
+
 }

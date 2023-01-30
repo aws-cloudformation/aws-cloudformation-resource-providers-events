@@ -197,7 +197,7 @@ public class Translator {
                 .build());
       }
 
-      targets.add(Target.builder()
+      targets.add(targetBuilder
               .arn(target.getArn())
               .id(target.getId())
               .input(target.getInput())
@@ -282,143 +282,137 @@ public class Translator {
     if (awsResponse.targets() != null) {
 
       for (software.amazon.awssdk.services.cloudwatchevents.model.Target target : awsResponse.targets()) {
-        software.amazon.events.rule.Target thisTarget = new software.amazon.events.rule.Target();
 
-        Set<software.amazon.events.rule.RunCommandTarget> runCommandTargets = new HashSet<>();
-
-        software.amazon.events.rule.BatchParameters.BatchParametersBuilder batchParametersBuilder = new software.amazon.events.rule.BatchParameters.BatchParametersBuilder();
-        software.amazon.events.rule.BatchRetryStrategy.BatchRetryStrategyBuilder batchRetryStrategyBuilder = new software.amazon.events.rule.BatchRetryStrategy.BatchRetryStrategyBuilder();
-        software.amazon.events.rule.BatchArrayProperties.BatchArrayPropertiesBuilder batchArrayPropertiesBuilder = new software.amazon.events.rule.BatchArrayProperties.BatchArrayPropertiesBuilder();
-        software.amazon.events.rule.DeadLetterConfig.DeadLetterConfigBuilder deadLetterConfigBuilder = new software.amazon.events.rule.DeadLetterConfig.DeadLetterConfigBuilder();
-        software.amazon.events.rule.EcsParameters.EcsParametersBuilder ecsParametersBuilder = new software.amazon.events.rule.EcsParameters.EcsParametersBuilder();
-        software.amazon.events.rule.NetworkConfiguration.NetworkConfigurationBuilder networkConfigurationBuilder = new software.amazon.events.rule.NetworkConfiguration.NetworkConfigurationBuilder();
-        software.amazon.events.rule.AwsVpcConfiguration.AwsVpcConfigurationBuilder awsVpcConfigurationBuilder = new software.amazon.events.rule.AwsVpcConfiguration.AwsVpcConfigurationBuilder();
-        software.amazon.events.rule.HttpParameters.HttpParametersBuilder httpParametersBuilder = new software.amazon.events.rule.HttpParameters.HttpParametersBuilder();
-        software.amazon.events.rule.InputTransformer.InputTransformerBuilder inputTransformerBuilder = new software.amazon.events.rule.InputTransformer.InputTransformerBuilder();
-        software.amazon.events.rule.KinesisParameters.KinesisParametersBuilder kinesisParametersBuilder = new software.amazon.events.rule.KinesisParameters.KinesisParametersBuilder();
-        software.amazon.events.rule.RedshiftDataParameters.RedshiftDataParametersBuilder redshiftDataParametersBuilder = new software.amazon.events.rule.RedshiftDataParameters.RedshiftDataParametersBuilder();
-        software.amazon.events.rule.RetryPolicy.RetryPolicyBuilder retryPolicyBuilder = new software.amazon.events.rule.RetryPolicy.RetryPolicyBuilder();
-        software.amazon.events.rule.RunCommandParameters.RunCommandParametersBuilder runCommandParametersBuilder = new software.amazon.events.rule.RunCommandParameters.RunCommandParametersBuilder();
-        software.amazon.events.rule.SqsParameters.SqsParametersBuilder sqsParametersBuilder = new software.amazon.events.rule.SqsParameters.SqsParametersBuilder();
+        software.amazon.events.rule.Target.TargetBuilder targetBuilder = software.amazon.events.rule.Target.builder();
 
         if (target.batchParameters() != null) {
+          software.amazon.events.rule.BatchParameters.BatchParametersBuilder batchParameters = software.amazon.events.rule.BatchParameters.builder();
 
-          batchRetryStrategyBuilder.attempts(target.batchParameters().retryStrategy() != null
-                  ? target.batchParameters().retryStrategy().attempts()
-                  : null);
+          if (target.batchParameters().arrayProperties() != null) {
+            batchParameters.arrayProperties(software.amazon.events.rule.BatchArrayProperties.builder()
+                    .size(target.batchParameters().arrayProperties().size())
+                    .build());
+          }
 
-          batchArrayPropertiesBuilder.size(target.batchParameters().arrayProperties() != null
-                  ? target.batchParameters().arrayProperties().size()
-                  : null);
+          if (target.batchParameters().retryStrategy() != null) {
+            batchParameters.retryStrategy(software.amazon.events.rule.BatchRetryStrategy.builder()
+                    .attempts(target.batchParameters().retryStrategy().attempts())
+                    .build());
+          }
 
-          batchParametersBuilder.jobName(target.batchParameters().jobName());
-          batchParametersBuilder.retryStrategy(batchRetryStrategyBuilder.build());
-          batchParametersBuilder.arrayProperties(batchArrayPropertiesBuilder.build());
-          batchParametersBuilder.jobDefinition(target.batchParameters().jobDefinition());
-
-          thisTarget.setBatchParameters(batchParametersBuilder.build());
+          targetBuilder.batchParameters(batchParameters
+                  .jobDefinition(target.batchParameters().jobDefinition())
+                  .jobName(target.batchParameters().jobName())
+                  .build());
         }
 
         if (target.deadLetterConfig() != null) {
-          deadLetterConfigBuilder.arn(target.deadLetterConfig().arn());
-
-          thisTarget.setDeadLetterConfig(deadLetterConfigBuilder.build());
+          targetBuilder.deadLetterConfig(software.amazon.events.rule.DeadLetterConfig.builder()
+                  .arn(target.deadLetterConfig().arn())
+                  .build());
         }
 
         if (target.ecsParameters() != null) {
-          if (target.ecsParameters().networkConfiguration() != null && target.ecsParameters().networkConfiguration().awsvpcConfiguration() != null) {
-            awsVpcConfigurationBuilder.securityGroups(target.ecsParameters().networkConfiguration().awsvpcConfiguration().securityGroups() != null
-                    ? new HashSet<>(target.ecsParameters().networkConfiguration().awsvpcConfiguration().securityGroups())
-                    : null);
-            awsVpcConfigurationBuilder.subnets(target.ecsParameters().networkConfiguration().awsvpcConfiguration().subnets() != null
-                    ? new HashSet<>(target.ecsParameters().networkConfiguration().awsvpcConfiguration().subnets())
-                    : null);
-            awsVpcConfigurationBuilder.assignPublicIp(target.ecsParameters().networkConfiguration().awsvpcConfiguration().assignPublicIpAsString());
+          software.amazon.events.rule.EcsParameters.EcsParametersBuilder ecsParameters = software.amazon.events.rule.EcsParameters.builder();
 
-            networkConfigurationBuilder.awsVpcConfiguration(awsVpcConfigurationBuilder.build());
+          if (target.ecsParameters().networkConfiguration() != null &&
+                  target.ecsParameters().networkConfiguration().awsvpcConfiguration() != null) {
+            ecsParameters.networkConfiguration(software.amazon.events.rule.NetworkConfiguration.builder()
+                    .awsVpcConfiguration(software.amazon.events.rule.AwsVpcConfiguration.builder()
+                            .assignPublicIp(target.ecsParameters().networkConfiguration().awsvpcConfiguration().assignPublicIp().name())
+                            .securityGroups(new HashSet<>(target.ecsParameters().networkConfiguration().awsvpcConfiguration().securityGroups()))
+                            .subnets(new HashSet<>(target.ecsParameters().networkConfiguration().awsvpcConfiguration().subnets()))
+                            .build())
+                    .build());
           }
 
-          ecsParametersBuilder.platformVersion(target.ecsParameters().platformVersion());
-          ecsParametersBuilder.group(target.ecsParameters().group());
-          ecsParametersBuilder.taskCount(target.ecsParameters().taskCount());
-          ecsParametersBuilder.launchType(target.ecsParameters().launchTypeAsString());
-          ecsParametersBuilder.networkConfiguration(networkConfigurationBuilder.build());
-          ecsParametersBuilder.taskDefinitionArn(target.ecsParameters().taskDefinitionArn());
-
-          thisTarget.setEcsParameters(ecsParametersBuilder.build());
+          targetBuilder.ecsParameters(ecsParameters
+                  //.capacityProviderStrategy()
+                  //.enableECSManagedTags()
+                  //.enableExecuteCommand()
+                  .group(target.ecsParameters().group())
+                  .launchType(target.ecsParameters().launchType().name())
+                  //.placementConstraints()
+                  //.placementStrategy()
+                  .platformVersion(target.ecsParameters().platformVersion())
+                  //.propagateTags()
+                  //.referenceId()
+                  //.tags()
+                  .taskCount(target.ecsParameters().taskCount())
+                  .taskDefinitionArn(target.ecsParameters().taskDefinitionArn())
+                  .build());
         }
 
         if (target.httpParameters() != null) {
-          httpParametersBuilder.pathParameterValues(target.httpParameters().pathParameterValues() != null
-                  ? new HashSet<>(target.httpParameters().pathParameterValues())
-                  : null);
-          httpParametersBuilder.headerParameters(target.httpParameters().headerParameters());
-          httpParametersBuilder.queryStringParameters(target.httpParameters().queryStringParameters());
-
-          thisTarget.setHttpParameters(httpParametersBuilder.build());
+          targetBuilder.httpParameters(software.amazon.events.rule.HttpParameters.builder()
+                  .headerParameters(target.httpParameters().headerParameters())
+                  .pathParameterValues(new HashSet<>(target.httpParameters().pathParameterValues()))
+                  .queryStringParameters(target.httpParameters().queryStringParameters())
+                  .build());
         }
 
         if (target.inputTransformer() != null) {
-          inputTransformerBuilder.inputTemplate(target.inputTransformer().inputTemplate());
-          inputTransformerBuilder.inputPathsMap(target.inputTransformer().inputPathsMap());
-
-          thisTarget.setInputTransformer(inputTransformerBuilder.build());
+          targetBuilder.inputTransformer(software.amazon.events.rule.InputTransformer.builder()
+                  .inputPathsMap(target.inputTransformer().inputPathsMap())
+                  .inputTemplate(target.inputTransformer().inputTemplate())
+                  .build());
         }
 
         if (target.kinesisParameters() != null) {
-          kinesisParametersBuilder.partitionKeyPath(target.kinesisParameters().partitionKeyPath());
-
-          thisTarget.setKinesisParameters(kinesisParametersBuilder.build());
+          targetBuilder.kinesisParameters(software.amazon.events.rule.KinesisParameters.builder()
+                  .partitionKeyPath(target.kinesisParameters().partitionKeyPath())
+                  .build());
         }
 
         if (target.redshiftDataParameters() != null) {
-          redshiftDataParametersBuilder.statementName(target.redshiftDataParameters().statementName());
-          redshiftDataParametersBuilder.database(target.redshiftDataParameters().database());
-          redshiftDataParametersBuilder.secretManagerArn(target.redshiftDataParameters().secretManagerArn());
-          redshiftDataParametersBuilder.dbUser(target.redshiftDataParameters().dbUser());
-          redshiftDataParametersBuilder.sql(target.redshiftDataParameters().sql());
-          redshiftDataParametersBuilder.withEvent(target.redshiftDataParameters().withEvent());
-
-          thisTarget.setRedshiftDataParameters(redshiftDataParametersBuilder.build());
+          targetBuilder.redshiftDataParameters(software.amazon.events.rule.RedshiftDataParameters.builder()
+                  .database(target.redshiftDataParameters().database())
+                  .dbUser(target.redshiftDataParameters().dbUser())
+                  .secretManagerArn(target.redshiftDataParameters().secretManagerArn())
+                  .sql(target.redshiftDataParameters().sql())
+                  .statementName(target.redshiftDataParameters().statementName())
+                  .withEvent(target.redshiftDataParameters().withEvent())
+                  .build());
         }
 
         if (target.retryPolicy() != null) {
-          retryPolicyBuilder.maximumEventAgeInSeconds(target.retryPolicy().maximumEventAgeInSeconds());
-          retryPolicyBuilder.maximumRetryAttempts(target.retryPolicy().maximumRetryAttempts());
-
-          thisTarget.setRetryPolicy(retryPolicyBuilder.build());
+          targetBuilder.retryPolicy(software.amazon.events.rule.RetryPolicy.builder()
+                  .maximumEventAgeInSeconds(target.retryPolicy().maximumEventAgeInSeconds())
+                  .maximumRetryAttempts(target.retryPolicy().maximumRetryAttempts())
+                  .build());
         }
 
-        if (target.runCommandParameters() != null) {
-          for (software.amazon.awssdk.services.cloudwatchevents.model.RunCommandTarget runCommandTarget : target.runCommandParameters().runCommandTargets()) {
-            runCommandTargets.add(new software.amazon.events.rule.RunCommandTarget.RunCommandTargetBuilder()
-                    .values(new HashSet<>(runCommandTarget.values()))
-                    .key(runCommandTarget.key())
+        if (target.runCommandParameters() != null && target.runCommandParameters().runCommandTargets() != null) {
+          HashSet<software.amazon.events.rule.RunCommandTarget> runCommandTargets = new HashSet<>();
+
+          for (RunCommandTarget value : target.runCommandParameters().runCommandTargets()) {
+            runCommandTargets.add(software.amazon.events.rule.RunCommandTarget.builder()
+                    .key(value.key())
+                    .values(new HashSet<>(value.values()))
                     .build()
             );
           }
 
-          if (runCommandTargets.size() > 0) {
-            runCommandParametersBuilder.runCommandTargets(runCommandTargets);
-
-            thisTarget.setRunCommandParameters(runCommandParametersBuilder.build());
-          }
+          targetBuilder.runCommandParameters(software.amazon.events.rule.RunCommandParameters.builder()
+                  .runCommandTargets(runCommandTargets)
+                  .build());
         }
 
         if (target.sqsParameters() != null) {
-          sqsParametersBuilder.messageGroupId(target.sqsParameters().messageGroupId());
-
-          thisTarget.setSqsParameters(sqsParametersBuilder.build());
+          targetBuilder.sqsParameters(software.amazon.events.rule.SqsParameters.builder()
+                  .messageGroupId(target.sqsParameters().messageGroupId())
+                  .build());
         }
 
-        thisTarget.setArn(target.arn());
-        thisTarget.setId(target.id());
-        thisTarget.setInput(target.input());
-        thisTarget.setInputPath(target.inputPath());
-        thisTarget.setRoleArn(target.roleArn());
-        //thisTarget.setSageMakerPipelineParameters(target.sageMakerPipelineParameters()); FIXME Not supported
-
-        targets.add(thisTarget);
+        targets.add(targetBuilder
+                .arn(target.arn())
+                .id(target.id())
+                .input(target.input())
+                .inputPath(target.inputPath())
+                .roleArn(target.roleArn())
+                //.sageMakerPipelineParameters(target.setSageMakerPipelineParameters())
+                .build()
+        );
       }
     }
     return targets;
@@ -525,19 +519,5 @@ public class Translator {
     // TODO: construct a request
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L39-L43
     return awsRequest;
-  }
-
-  private static List<Tag> translateModelTagsMapToSdk(
-          Map<String, String> tags) {
-    if (tags == null || tags.isEmpty()) {
-      return null;
-    }
-
-    return streamOfOrEmpty(tags.entrySet())
-            .map(e -> Tag.builder()
-                    .key(e.getKey())
-                    .value(e.getValue())
-                    .build())
-            .collect(Collectors.toList());
   }
 }
