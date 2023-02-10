@@ -142,6 +142,7 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn("arn")
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
@@ -178,6 +179,7 @@ public class CreateHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
             .desiredResourceState(model)
             .build();
+        request.getDesiredResourceState().setArn("arn");
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
 

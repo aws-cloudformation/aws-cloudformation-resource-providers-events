@@ -1,0 +1,66 @@
+Resources:
+  bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          from datetime import datetime
+          def lambda_handler(event, context):
+
+            statusCode = '200'
+
+            print('hello')
+
+            return {
+                'statusCode': statusCode,
+                'body': str(datetime.now()),
+                'isBase64Encoded':  False
+            }
+      Role:
+        Fn::GetAtt:
+          - functionServiceRole
+          - Arn
+      Handler: test_function.lambda_handler
+      Runtime: python3.9
+
+  functionServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ''
+            - - 'arn:'
+              - Ref: AWS::Partition
+              - ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+Outputs:
+  Bucket:
+    Value: # TODO reference to s3 bucket name
+      Ref: bucket
+    Export:
+      Name: awseventsrulecto1
+
+  LambdaId:
+    Value:
+      Ref: function
+    Export:
+      Name: awseventsrulecto2
+
+  LambdaArn:
+    Value:
+      Fn::GetAtt:
+        - function
+        - Arn
+    Export:
+      Name: awseventsrulecto3

@@ -1,0 +1,35 @@
+{
+  "CreateInputs": {
+    "Name": "contractTestEventsRule",
+    "Description": "Sample description",
+    "EventPattern": {
+      "source": [
+        "aws.s3"
+      ],
+      "detail-type": [
+        "Object created"
+      ],
+      "detail": {
+        "bucket": {
+          "name": [
+            "{{awseventsrulecto1}}"
+          ]
+        }
+      }
+    },
+    "State": "ENABLED",
+    "Targets": [
+      {
+        "Id": "{{awseventsrulecto2}}",
+        "Arn": "{{awseventsrulecto3}}"
+      }
+    ]
+  },
+  "PatchInputs": [
+    {
+      "op": "replace",
+      "path": "/Tags/0/Value",
+      "value": "val-1"
+    }
+  ]
+}

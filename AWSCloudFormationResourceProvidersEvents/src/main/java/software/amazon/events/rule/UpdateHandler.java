@@ -168,7 +168,7 @@ public class UpdateHandler extends BaseHandlerStd {
 
                         if (progress.getResourceModel().getTargets() != null) {
 
-                            if (awsResponse.hasFailedEntries()) {
+                            if (awsResponse.hasFailedEntries() && awsResponse.failedEntryCount() > 0) {
                                 if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
                                     callbackContext.setRetryAttemptsForPutTargets(callbackContext.getRetryAttemptsForPutTargets() + 1);
                                     awsRequest = Translator.translateToPutTargetsRequest(progress.getResourceModel());

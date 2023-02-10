@@ -11,4 +11,5 @@ public class CallbackContext extends StdCallbackContext {
 
     private int retryAttemptsForPutTargets;
     private ListTargetsByRuleResponse listTargetsByRuleResponse;
+    private boolean ruleExists;
 }

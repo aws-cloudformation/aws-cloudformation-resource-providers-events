@@ -39,6 +39,8 @@ public class ReadHandler extends BaseHandlerStd {
             .then(progress -> proxy.initiate("AWS-Events-Rule::ReadRule", proxyClient, request.getDesiredResourceState(), callbackContext)
                 .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
                 .makeServiceCall((awsRequest, client) -> {
+                    logger.log("Model Rule name: " + model.getName());
+                    logger.log("Request Rule name: " + awsRequest.name());
 
                     DescribeRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
 

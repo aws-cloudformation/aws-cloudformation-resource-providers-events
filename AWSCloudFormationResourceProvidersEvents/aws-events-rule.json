@@ -36,10 +36,6 @@
             },
             "insertionOrder": false
         },
-        "Id": {
-            "type": "string",
-            "description": "The logical ID of this resource."
-        },
         "Arn": {
             "type": "string",
             "description": "The ARN of the rule, such as arn:aws:events:us-east-2:123456789012:rule/example."
@@ -547,10 +543,9 @@
         "/properties/EventBusName"
     ],
     "primaryIdentifier": [
-        "/properties/Id"
+        "/properties/Arn"
     ],
     "readOnlyProperties": [
-        "/properties/Id",
         "/properties/Arn"
     ]
 }
