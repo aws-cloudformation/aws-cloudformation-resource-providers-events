@@ -23,32 +23,22 @@ import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.awssdk.services.cloudwatchevents.model.BatchArrayProperties;
 import software.amazon.awssdk.services.cloudwatchevents.model.RunCommandTarget;
 import software.amazon.cloudformation.exceptions.TerminalException;
-import software.amazon.awssdk.services.cloudwatchevents.model.Tag;
 
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * This class is a centralized placeholder for
- *  - api request construction
- *  - object translation to/from aws sdk
- *  - resource model construction for read/list handlers
- */
-
 public class Translator {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  /**
-   * Request to create a resource
-   * @param model resource model
-   * @return awsRequest the aws service request to create a resource
-   */
+  // CREATE/UPDATE
+
   static PutRuleRequest translateToPutRuleRequest(final ResourceModel model, Map<String, String> tags) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L39-L43
     String eventPattern = null;
     PutRuleRequest.Builder putRuleRequest = PutRuleRequest.builder();
+    CompositeId compositeId = new CompositeId(model);
 
     try {
       eventPattern = MAPPER.writeValueAsString(model.getEventPattern());
@@ -57,8 +47,8 @@ public class Translator {
     }
 
     return putRuleRequest
-            .name(model.getName())
-            .eventBusName(model.getEventBusName())
+            .name(compositeId.ruleName)
+            .eventBusName(compositeId.eventBusName)
             .description(model.getDescription())
             .eventPattern(eventPattern)
             .roleArn(model.getRoleArn())
@@ -67,11 +57,8 @@ public class Translator {
             .build();
   }
 
-  static CloudWatchEventsRequest dummmyTranslator(final ResourceModel model) {
-    return null;
-  }
-
   static PutTargetsRequest translateToPutTargetsRequest(final ResourceModel model) {
+    CompositeId compositeId = new CompositeId(model);
 
     ArrayList<Target> targets = new ArrayList<Target>();
 
@@ -209,44 +196,25 @@ public class Translator {
     }
 
     return PutTargetsRequest.builder()
-            .eventBusName(model.getEventBusName())
-            .rule(model.getName())
+            .eventBusName(compositeId.eventBusName)
+            .rule(compositeId.ruleName)
             .targets(targets)
             .build();
   }
 
-  /**
-   * Request to read a resource
-   * @param model resource model
-   * @return awsRequest the aws service request to describe a resource
-   */
+  // READ
+
   static DescribeRuleRequest translateToDescribeRuleRequest(final ResourceModel model) {
+    CompositeId compositeId = new CompositeId(model);
+
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L20-L24
     return DescribeRuleRequest.builder()
-            .name(model.getName())
-            .eventBusName(model.getEventBusName())
+            .name(compositeId.ruleName)
+            .eventBusName(compositeId.eventBusName)
             .build();
   }
 
-  /**
-   * Request to read a resource
-   * @param model resource model
-   * @return awsRequest the aws service request to describe a resource
-   */
-  static ListTargetsByRuleRequest translateToListTargetsByRuleRequest(final ResourceModel model) {
-    // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L20-L24
-    return ListTargetsByRuleRequest.builder()
-            .rule(model.getName())
-            .eventBusName(model.getEventBusName())
-            .build();
-  }
-
-  /**
-   * Translates resource object from sdk into a resource model
-   * @param awsResponse the aws service describe resource response
-   * @return model resource model
-   */
-  static ResourceModel.ResourceModelBuilder translateFromReadResponse(final DescribeRuleResponse awsResponse) {
+  static ResourceModel.ResourceModelBuilder translateFromDescribeRuleResponse(final DescribeRuleResponse awsResponse) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L58-L73
     TypeReference<HashMap<String, Object>> typeRef = new TypeReference<HashMap<String, Object>>() {};
     HashMap<String, Object> eventPattern;
@@ -271,12 +239,7 @@ public class Translator {
             .state(awsResponse.stateAsString());
   }
 
-  /**
-   * Translates resource objects from sdk into a resource model (primary identifier only)
-   * @param awsResponse the aws service describe resource response
-   * @return list of resource models
-   */
-  static Set<software.amazon.events.rule.Target> translateFromResponseToTargets(final ListTargetsByRuleResponse awsResponse) {
+  static Set<software.amazon.events.rule.Target> translateFromListTargetsByRuleResponse(final ListTargetsByRuleResponse awsResponse) {
     Set<software.amazon.events.rule.Target> targets = new HashSet<>();
 
     if (awsResponse.targets() != null) {
@@ -418,25 +381,31 @@ public class Translator {
     return targets;
   }
 
-  /**
-   * Request to delete a resource
-   * @param model resource model
-   * @return awsRequest the aws service request to delete a resource
-   */
+  // DELETE
+
   static DeleteRuleRequest translateToDeleteRuleRequest(final ResourceModel model) {
+    CompositeId compositeId = new CompositeId(model);
+
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
 
     return DeleteRuleRequest.builder()
-            .name(model.getName())
-            .eventBusName(model.getEventBusName())
+            .name(compositeId.ruleName)
+            .eventBusName(compositeId.eventBusName)
             .build();
   }
 
-  /**
-   * Request to delete a resource
-   * @param model resource model
-   * @return awsRequest the aws service request to delete a resource
-   */
+  static RemoveTargetsRequest translateToRemoveTargetsRequest(final ResourceModel model, Collection<String> targetIds) {
+    CompositeId compositeId = new CompositeId(model);
+
+    // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
+
+    return RemoveTargetsRequest.builder()
+            .rule(compositeId.ruleName)
+            .eventBusName(compositeId.eventBusName)
+            .ids(targetIds)
+            .build();
+  }
+
   static RemoveTargetsRequest translateToRemoveTargetsRequest(final ResourceModel model, ListTargetsByRuleResponse listTargetsByRuleResponse) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
 
@@ -448,26 +417,8 @@ public class Translator {
     return translateToRemoveTargetsRequest(model, targetIds);
   }
 
-  /**
-   * Request to delete a resource
-   * @param model resource model
-   * @return awsRequest the aws service request to delete a resource
-   */
-  static RemoveTargetsRequest translateToRemoveTargetsRequest(final ResourceModel model, Collection<String> targetIds) {
-    // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
+  // LIST
 
-    return RemoveTargetsRequest.builder()
-            .rule(model.getName())
-            .eventBusName(model.getEventBusName())
-            .ids(targetIds)
-            .build();
-  }
-
-  /**
-   * Request to list resources
-   * @param nextToken token passed to the aws service list resources request
-   * @return awsRequest the aws service request to list resources within aws account
-   */
   static ListRulesRequest translateToListRulesRequest(final String nextToken) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L26-L31
     return ListRulesRequest.builder()
@@ -475,20 +426,31 @@ public class Translator {
             .build();
   }
 
-  /**
-   * Translates resource objects from sdk into a resource model (primary identifier only)
-   * @param awsResponse the aws service describe resource response
-   * @return list of resource models
-   */
+  static ListTargetsByRuleRequest translateToListTargetsByRuleRequest(final ResourceModel model) {
+    CompositeId compositeId = new CompositeId(model);
+
+    // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L20-L24
+    return ListTargetsByRuleRequest.builder()
+            .rule(compositeId.ruleName)
+            .eventBusName(compositeId.eventBusName)
+            .build();
+  }
+
   static List<ResourceModel> translateFromListRulesResponse(final ListRulesResponse awsResponse) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L75-L82
     return streamOfOrEmpty(awsResponse.rules())
         .map(resource -> ResourceModel.builder()
-                .name(resource.name())
-                .eventBusName(resource.eventBusName())
+                .arn(resource.arn())
             // include only primary identifier
             .build())
         .collect(Collectors.toList());
+  }
+
+
+  // OTHER
+
+  static CloudWatchEventsRequest dummmyTranslator(final ResourceModel model) {
+    return null;
   }
 
   private static <T> Stream<T> streamOfOrEmpty(final Collection<T> collection) {

@@ -15,7 +15,9 @@ import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleReques
 import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
+import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
@@ -244,4 +246,41 @@ public class ReadHandlerTest extends AbstractTestBase {
         assertThat(response.getMessage()).isNull();
         assertThat(response.getErrorCode()).isNull();
     }
+
+    @Test
+    public void handleRequest_NotFound() {
+        final ReadHandler handler = new ReadHandler();
+
+        // MODEL
+
+        final ResourceModel model = ResourceModel.builder()
+                .name("TestRule")
+                .build();
+
+        // MOCK
+
+        /*
+        describeRule
+        listTargetsByRule
+         */
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenThrow(ResourceNotFoundException.class);
+
+        //RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.NotFound);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+    }
+
 }

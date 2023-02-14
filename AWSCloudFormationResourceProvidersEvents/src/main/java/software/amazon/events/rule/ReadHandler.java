@@ -1,8 +1,5 @@
 package software.amazon.events.rule;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import software.amazon.awssdk.awscore.AwsResponse;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
@@ -14,7 +11,6 @@ import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ReadHandler extends BaseHandlerStd {
@@ -41,16 +37,17 @@ public class ReadHandler extends BaseHandlerStd {
                 .makeServiceCall((awsRequest, client) -> {
                     logger.log("Model Rule name: " + model.getName());
                     logger.log("Request Rule name: " + awsRequest.name());
+                    logger.log("Model Arn: " + model.getArn());
 
                     DescribeRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
 
                     logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                     return awsResponse;
                 })
-                .handleError(this::handleError )
+                .handleError(this::handleError)
                 .done(awsResponse -> {
 
-                    finalResourceModel.set(Translator.translateFromReadResponse(awsResponse));
+                    finalResourceModel.set(Translator.translateFromDescribeRuleResponse(awsResponse));
 
                     return ProgressEvent.progress(model, callbackContext);
                 })
@@ -73,7 +70,7 @@ public class ReadHandler extends BaseHandlerStd {
                 .done(awsResponse -> {
 
                     if (awsResponse.hasTargets()) {
-                        finalResourceModel.get().targets(Translator.translateFromResponseToTargets(awsResponse));
+                        finalResourceModel.get().targets(Translator.translateFromListTargetsByRuleResponse(awsResponse));
                     }
 
                     return ProgressEvent.defaultSuccessHandler(finalResourceModel.get().build());

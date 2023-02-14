@@ -28,8 +28,8 @@
   "PatchInputs": [
     {
       "op": "replace",
-      "path": "/Tags/0/Value",
-      "value": "val-1"
+      "path": "/State",
+      "value": "DISABLED"
     }
   ]
 }
