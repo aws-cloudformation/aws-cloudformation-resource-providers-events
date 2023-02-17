@@ -1,0 +1,32 @@
+{
+  "CreateInputs": {
+    "Name": "contractTestEventsRule",
+    "Description": "Sample description",
+    "ScheduleExpression": "rate(1 day)",
+    "State": "ENABLED",
+    "Targets": [
+      {
+        "Id": "BatchTarget",
+        "Arn": "{{awseventsrulecto5}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "BatchParameters": {
+          "ArrayProperties" : {
+            "Size" : 2
+          },
+          "JobDefinition" : "{{awseventsrulecto4}}",
+          "JobName" : "EventsRuleBatchJob-ContractTests",
+          "RetryStrategy" : {
+            "Attempts" : 1
+          }
+        }
+      }
+    ]
+  },
+  "PatchInputs": [
+    {
+      "op": "replace",
+      "path": "/State",
+      "value": "DISABLED"
+    }
+  ]
+}

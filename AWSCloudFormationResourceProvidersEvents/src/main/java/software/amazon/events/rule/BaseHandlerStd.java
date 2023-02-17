@@ -96,7 +96,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     } else { // InternalException
       ex = new CfnGeneralServiceException(e);
     }
-    System.out.println("");
     return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), ex.getMessage());
   }
 }

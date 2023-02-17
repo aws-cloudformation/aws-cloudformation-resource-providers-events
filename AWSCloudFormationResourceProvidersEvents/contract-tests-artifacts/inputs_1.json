@@ -2,6 +2,7 @@
   "CreateInputs": {
     "Name": "contractTestEventsRule",
     "Description": "Sample description",
+    "RoleArn": "{{awseventsrulecto3}}",
     "EventPattern": {
       "source": [
         "aws.s3"
@@ -20,8 +21,82 @@
     "State": "ENABLED",
     "Targets": [
       {
-        "Id": "{{awseventsrulecto2}}",
-        "Arn": "{{awseventsrulecto3}}"
+        "Id": "LambdaTarget",
+        "Arn": "{{awseventsrulecto2}}",
+        "DeadLetterConfig": {
+          "Arn": "{{awseventsrulecto6}}"
+        }
+      },
+      {
+        "Id": "EcsTarget",
+        "Arn": "{{awseventsrulecto11}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "EcsParameters": {
+          "CapacityProviderStrategy" : [
+            {
+              "Base" : 0,
+              "CapacityProvider" : "{{awseventsrulecto9}}",
+              "Weight" : 0
+            }
+          ],
+          "EnableECSManagedTags" : false,
+          "EnableExecuteCommand" : false,
+          "Group" : "EcsTargetGroup",
+          "NetworkConfiguration" : {
+            "AwsVpcConfiguration" : {
+              "AssignPublicIp" : "DISABLED",
+              "SecurityGroups" : [ 
+                "{{awseventsrulecto7}}"
+              ],
+              "Subnets" : [ 
+                "{{awseventsrulecto8}}"
+              ]
+            }            
+          },
+          "PlacementConstraints" : [ 
+            {
+              "Expression" : "attribute:ecs.instance-type =~ t2.*",
+              "Type" : "memberOf"
+            }
+          ],
+          "PlacementStrategies" : [
+            {
+              "Field" : "instanceId",
+              "Type" : "spread"
+            }
+          ],
+          "PropagateTags" : "TASK_DEFINITION",
+          "ReferenceId" : "EcsTargetReferenceId",
+          "TagList" : [
+            {
+              "Key" : "testkey",
+              "Value" : "testvalue"
+            }
+          ],
+          "TaskCount" : 1,
+          "TaskDefinitionArn" : "{{awseventsrulecto10}}"
+        }        
+      },
+      {
+        "Id": "EcsTargetFargate",
+        "Arn": "{{awseventsrulecto12}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "EcsParameters": {
+          "LaunchType" : "FARGATE",
+          "PlatformVersion" : "LATEST",
+          "TaskDefinitionArn" : "{{awseventsrulecto10}}",
+          "NetworkConfiguration" : {
+            "AwsVpcConfiguration" : {
+              "AssignPublicIp" : "DISABLED",
+              "SecurityGroups" : [ 
+                "{{awseventsrulecto7}}"
+              ],
+              "Subnets" : [ 
+                "{{awseventsrulecto8}}"
+              ]
+            }            
+          }
+        }        
       }
     ]
   },

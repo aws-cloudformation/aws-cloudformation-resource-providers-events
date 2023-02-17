@@ -1,3 +1,9 @@
+Parameters:
+  LatestAmiId:
+    Description: Region specific image from the Parameter Store
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
 Resources:
   bucket:
     Type: AWS::S3::Bucket
@@ -38,24 +44,170 @@ Resources:
               Service: lambda.amazonaws.com
         Version: '2012-10-17'
       ManagedPolicyArns:
-        - Fn::Join:
-            - ''
-            - - 'arn:'
-              - Ref: AWS::Partition
-              - ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
+  adminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  basicVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+      - Key: stack
+        Value: production
+
+  basicSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Ref: basicVpc
+      GroupDescription: Allow http to client host
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  basicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: basicVpc
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+
+  batchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: batch.amazonaws.com
+        Version: '2012-10-17'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+  batchComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ReplaceComputeEnvironment: true
+      ServiceRole: 
+        Fn::GetAtt:
+          - batchServiceRole
+          - Arn
+      State: ENABLED
+      Type: MANAGED
+      ComputeResources:
+        MaxvCpus: 1
+        Subnets: 
+          - Ref: basicSubnet
+        Type: FARGATE
+        UpdateToLatestImageVersion: false
+        SecurityGroupIds:
+          - Ref: basicSecurityGroup
+
+  batchJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment:
+            Ref: batchComputeEnvironment
+          Order: 1
+      Priority: 1
+      State: ENABLED
+
+  batchJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      Type: container
+      ContainerProperties:
+        Command:
+          - echo success
+        Image: ubuntu
+        ResourceRequirements:
+          - Type: VCPU
+            Value: '1'
+          - Type: MEMORY
+            Value: '4096'
+
+  deadLetterQueue:
+    Type: AWS::SQS::Queue
+
+  basicLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: t2.micro
+        ImageId: !Ref LatestAmiId
+
+  basicAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref basicLaunchTemplate
+        Version: !GetAtt basicLaunchTemplate.LatestVersionNumber
+      MaxSize: '1'
+      MinSize: '0'
+      DesiredCapacity: '1' 
+      VPCZoneIdentifier: 
+        - !Ref basicSubnet
+
+  ecsCapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref basicAutoScalingGroup
+
+  ecsTaskDefinition: # must use awsvpc network mode
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image: ubuntu
+          Name: test-task
+          Memory: 4096
+
+  ecsClusterEc2:
+    Type: AWS::ECS::Cluster
+    Properties:
+      CapacityProviders:
+        - !Ref ecsCapacityProvider
+
+  ecsClusterFargate:
+    Type: AWS::ECS::Cluster
+    Properties:
+      CapacityProviders:
+        - FARGATE
 
 Outputs:
   Bucket:
-    Value: # TODO reference to s3 bucket name
+    Value:
       Ref: bucket
     Export:
       Name: awseventsrulecto1
-
-  LambdaId:
-    Value:
-      Ref: function
-    Export:
-      Name: awseventsrulecto2
 
   LambdaArn:
     Value:
@@ -63,4 +215,73 @@ Outputs:
         - function
         - Arn
     Export:
+      Name: awseventsrulecto2
+
+  RoleArn:
+    Value:
+      Fn::GetAtt:
+        - adminRole
+        - Arn
+    Export:
       Name: awseventsrulecto3
+
+  BatchJobDefinitionArn:
+    Value:
+      Ref: batchJobDefinition
+    Export:
+      Name: awseventsrulecto4
+
+  BatchJobQueueArn:
+    Value:
+      Ref: batchJobQueue
+    Export:
+      Name: awseventsrulecto5
+
+  DeadLetterQueueArn:
+    Value:
+      Fn::GetAtt:
+        - deadLetterQueue
+        - Arn
+    Export:
+      Name: awseventsrulecto6
+
+  BasicSecurityGroupGroupArn:
+    Value: !Sub
+      - 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${SecurityGroupId}'
+      - SecurityGroupId: !Ref basicSecurityGroup
+    Export:
+      Name: awseventsrulecto7
+
+  BasicSubnetId:
+    Value:
+      Ref: basicSubnet
+    Export:
+      Name: awseventsrulecto8
+
+  ecsCapacityProviderName:
+    Value:
+      Ref: ecsCapacityProvider
+    Export:
+      Name: awseventsrulecto9
+
+  ecsTaskDefinitionArn:
+    Value:
+      Ref: ecsTaskDefinition
+    Export:
+      Name: awseventsrulecto10
+
+  ecsClusterEc2Arn:
+    Value:
+      Fn::GetAtt:
+        - ecsClusterEc2
+        - Arn
+    Export:
+      Name: awseventsrulecto11
+
+  ecsClusterFargateArn:
+    Value:
+      Fn::GetAtt:
+        - ecsClusterFargate
+        - Arn
+    Export:
+      Name: awseventsrulecto12

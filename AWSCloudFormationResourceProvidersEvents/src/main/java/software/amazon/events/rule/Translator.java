@@ -40,10 +40,12 @@ public class Translator {
     PutRuleRequest.Builder putRuleRequest = PutRuleRequest.builder();
     CompositeId compositeId = new CompositeId(model);
 
-    try {
-      eventPattern = MAPPER.writeValueAsString(model.getEventPattern());
-    } catch (final JsonProcessingException e) {
-      throw new TerminalException(e);
+    if (model.getEventPattern() != null) {
+      try {
+        eventPattern = MAPPER.writeValueAsString(model.getEventPattern());
+      } catch (final JsonProcessingException e) {
+        throw new TerminalException(e);
+      }
     }
 
     return putRuleRequest
@@ -217,15 +219,17 @@ public class Translator {
   static ResourceModel.ResourceModelBuilder translateFromDescribeRuleResponse(final DescribeRuleResponse awsResponse) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L58-L73
     TypeReference<HashMap<String, Object>> typeRef = new TypeReference<HashMap<String, Object>>() {};
-    HashMap<String, Object> eventPattern;
+    HashMap<String, Object> eventPattern = null;
 
-    try {
-      eventPattern = MAPPER.readValue(
-            awsResponse.eventPattern(),
-            typeRef
-      );
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
+    if (awsResponse.eventPattern() != null) {
+      try {
+        eventPattern = MAPPER.readValue(
+                awsResponse.eventPattern(),
+                typeRef
+        );
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     return ResourceModel.builder()

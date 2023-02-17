@@ -195,6 +195,102 @@ public class CreateHandlerTest extends AbstractTestBase {
     }
 
     @Test
+    public void handleRequest_ScheduleExpression() {
+        final CreateHandler handler = new CreateHandler();
+
+        // MODEL
+
+        Set<software.amazon.events.rule.Target> targets = new HashSet<>();
+
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("TestLambdaFunctionId")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId")
+                .build());
+
+        final ResourceModel model = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .scheduleExpression("rate(1 day)")
+                .state("ENABLED")
+                .targets(targets)
+                .build();
+
+        // MOCK
+
+        /*
+        describeRule
+        putRule
+        describeRule
+        putTargets
+        listTargetsByRule
+         */
+
+        Collection<Target> responseTargets = new ArrayList<>();
+        for (software.amazon.events.rule.Target target : model.getTargets()) {
+            responseTargets.add(Target.builder()
+                    .id(target.getId())
+                    .arn(target.getArn())
+                    .build());
+        }
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .name(model.getName())
+                .description(model.getDescription())
+                .scheduleExpression(model.getScheduleExpression())
+                .state(model.getState())
+                .arn("arn")
+                .build();
+
+        final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
+                .ruleArn("arn")
+                .build();
+
+        final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
+                .build();
+
+        final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
+                .build();
+
+        final ListTargetsByRuleResponse listTargetsByRuleResponse2 = ListTargetsByRuleResponse.builder()
+                .targets(responseTargets)
+                .build();
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenThrow(ResourceNotFoundException.class)
+                .thenThrow(ResourceNotFoundException.class)
+                .thenReturn(describeRuleResponse);
+
+        when(proxyClient.client().putRule(any(PutRuleRequest.class)))
+                .thenReturn(putRuleResponse);
+
+        when(proxyClient.client().putTargets(any(PutTargetsRequest.class)))
+                .thenReturn(putTargetsResponse);
+
+        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
+                .thenReturn(listTargetsByRuleResponse1)
+                .thenReturn(listTargetsByRuleResponse2);
+
+        // RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+        request.getDesiredResourceState().setArn("arn");
+
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isNull();
+        assertThat(response.getErrorCode()).isNull();
+    }
+
+    @Test
     public void handleRequest_CreateTargetsFail() {
         final CreateHandler handler = new CreateHandler();
 
