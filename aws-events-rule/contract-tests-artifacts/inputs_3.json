@@ -1,0 +1,81 @@
+{
+  "CreateInputs": {
+    "Name": "contractTestEventsRule",
+    "Description": "Sample description",
+    "ScheduleExpression": "rate(1 day)",
+    "State": "ENABLED",
+    "Targets": [
+      {
+        "Id": "BatchTarget",
+        "Arn": "{{awseventsrulecto5}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "BatchParameters": {
+          "ArrayProperties" : {
+            "Size" : 2
+          },
+          "JobDefinition" : "{{awseventsrulecto4}}",
+          "JobName" : "EventsRuleBatchJob-ContractTests",
+          "RetryStrategy" : {
+            "Attempts" : 1
+          }
+        }
+      },
+      {
+        "Id": "LambdaTarget",
+        "Arn": "{{awseventsrulecto2}}",
+        "DeadLetterConfig": {
+          "Arn": "{{awseventsrulecto6}}"
+        },
+        "RetryPolicy": {
+          "MaximumEventAgeInSeconds" : 60,
+          "MaximumRetryAttempts" : 2
+        },
+        "InputTransformer": {
+          "InputPathsMap" : {
+            "key" : "$.detail"
+          },
+          "InputTemplate" : "{ \"key\": <key> }"
+        }        
+      },
+      {
+        "Id": "KinesisTarget",
+        "Arn": "{{awseventsrulecto14}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "KinesisParameters": {
+          "PartitionKeyPath" : "$.time"
+        }            
+      },
+      {
+        "Id": "RedshiftTarget1",
+        "Arn": "{{awseventsrulecto16}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "RedshiftDataParameters": {
+          "Database" : "testdb",
+          "SecretManagerArn" : "{{awseventsrulecto15}}",
+          "Sql" : "SELECT *",
+          "StatementName" : "Select all",
+          "WithEvent" : false
+        }                 
+      },
+      {
+        "Id": "RedshiftTarget2",
+        "Arn": "{{awseventsrulecto16}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "RedshiftDataParameters": {
+          "Database" : "testdb",
+          "DbUser" : "masteruser",
+          "Sql" : "SELECT *",
+          "StatementName" : "Select all",
+          "WithEvent" : false
+        }                 
+      }
+    ]
+  },
+  "PatchInputs": [
+    {
+      "op": "replace",
+      "path": "/State",
+      "value": "DISABLED"
+    }
+  ]
+}

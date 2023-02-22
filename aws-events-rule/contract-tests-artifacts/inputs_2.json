@@ -21,11 +21,20 @@
     "State": "ENABLED",
     "Targets": [
       {
-        "Id": "LambdaTarget",
+        "Id": "LambdaTarget1",
         "Arn": "{{awseventsrulecto2}}",
         "DeadLetterConfig": {
           "Arn": "{{awseventsrulecto6}}"
-        }
+        },
+        "Input": "{ \"key\": \"value\" }"
+      },
+      {
+        "Id": "LambdaTarget2",
+        "Arn": "{{awseventsrulecto2}}",
+        "DeadLetterConfig": {
+          "Arn": "{{awseventsrulecto6}}"
+        },
+        "InputPath": "$.detail"
       },
       {
         "Id": "EcsTarget",
@@ -95,6 +104,22 @@
                 "{{awseventsrulecto8}}"
               ]
             }            
+          }
+        }        
+      },
+      {
+        "Id": "HttpTarget",
+        "Arn": "{{awseventsrulecto13}}",
+        "RoleArn": "{{awseventsrulecto3}}",
+        "HttpParameters": {
+          "HeaderParameters": {
+            "Key": "Value"
+          },
+          "PathParameterValues": [
+            "/path"
+          ],
+          "QueryStringParameters": {
+            "Key": "Value"
           }
         }        
       }

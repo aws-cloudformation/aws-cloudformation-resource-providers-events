@@ -74,8 +74,7 @@ Resources:
   basicSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      VpcId:
-        Ref: basicVpc
+      VpcId: !Ref basicVpc
       GroupDescription: Allow http to client host
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -91,8 +90,7 @@ Resources:
   basicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId:
-        Ref: basicVpc
+      VpcId: !Ref basicVpc
       CidrBlock: 10.0.0.0/24
       AvailabilityZone: !Select 
         - 0
@@ -124,18 +122,17 @@ Resources:
       ComputeResources:
         MaxvCpus: 1
         Subnets: 
-          - Ref: basicSubnet
+          - !Ref basicSubnet
         Type: FARGATE
         UpdateToLatestImageVersion: false
         SecurityGroupIds:
-          - Ref: basicSecurityGroup
+          - !Ref basicSecurityGroup
 
   batchJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
       ComputeEnvironmentOrder:
-        - ComputeEnvironment:
-            Ref: batchComputeEnvironment
+        - ComputeEnvironment: !Ref batchComputeEnvironment
           Order: 1
       Priority: 1
       State: ENABLED
@@ -154,8 +151,14 @@ Resources:
           - Type: MEMORY
             Value: '4096'
 
-  deadLetterQueue:
+  sqsQueue:
     Type: AWS::SQS::Queue
+
+  
+  sqsQueueFifo:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
 
   basicLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -202,46 +205,129 @@ Resources:
       CapacityProviders:
         - FARGATE
 
+  apiGatewayApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Description: Example API Gateway
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Name: testApi
+
+  apiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt apiGatewayApi.RootResourceId
+      PathPart: '{parameter}'
+      RestApiId: !Ref apiGatewayApi
+
+  apiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt function.Arn
+      ResourceId: !Ref apiGatewayResource
+      RestApiId: !Ref apiGatewayApi
+
+  apiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - apiGatewayMethod
+    Properties:
+      RestApiId: !Ref apiGatewayApi
+      StageName: test
+
+  kinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 1
+
+  secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: dependencysecret
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "masteruser"}'
+        GenerateStringKey: "password"
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+        ExcludePunctuation: true
+
+  redshiftCluster:
+    Type: AWS::Redshift::Cluster
+    DependsOn:
+      - secret
+    Properties:
+      DBName: testdb
+      MasterUsername: '{{resolve:secretsmanager:dependencysecret:SecretString:username}}'
+      MasterUserPassword: '{{resolve:secretsmanager:dependencysecret:SecretString:password}}'
+      NodeType: ds2.xlarge
+      ClusterType: single-node
+
+  ec2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      
+  runCommand: 
+    Type: AWS::SSM::Document
+    Properties:
+      Content:
+        schemaVersion: '2.2'
+        description: 'Run a script on Linux instances.'
+        mainSteps:
+        - action: aws:runShellScript
+          name: runCommands
+          inputs:
+            timeoutSeconds: '60'
+            runCommand:
+            - echo Hello World
+      DocumentFormat: YAML
+      DocumentType: Command
+      Name: 'CFN_2.2_command_example'
+
+  sageMakerPipeline:
+    Type: AWS::SageMaker::Pipeline
+    Properties:
+      PipelineName: testPipeline
+      PipelineDefinition:
+        PipelineDefinitionBody: "{\"Version\":\"2020-12-01\",\"Parameters\":[{\"Name\":\"InputDataSource\",\"DefaultValue\":\"\"},{\"Name\":\"InstanceCount\",\"Type\":\"Integer\",\"DefaultValue\":1}],\"Steps\":[{\"Name\":\"Training1\",\"Type\":\"Training\",\"Arguments\":{\"InputDataConfig\":[{\"DataSource\":{\"S3DataSource\":{\"S3Uri\":{\"Get\":\"Parameters.InputDataSource\"}}}}],\"OutputDataConfig\":{\"S3OutputPath\":\"s3://my-s3-bucket/\"},\"ResourceConfig\":{\"InstanceType\":\"ml.m5.large\",\"InstanceCount\":{\"Get\":\"Parameters.InstanceCount\"},\"VolumeSizeInGB\":1024}}}]}"
+      RoleArn: !GetAtt adminRole.Arn
+
 Outputs:
   Bucket:
-    Value:
-      Ref: bucket
+    Value: !Ref bucket
     Export:
       Name: awseventsrulecto1
 
   LambdaArn:
-    Value:
-      Fn::GetAtt:
-        - function
-        - Arn
+    Value: !GetAtt function.Arn
     Export:
       Name: awseventsrulecto2
 
   RoleArn:
-    Value:
-      Fn::GetAtt:
-        - adminRole
-        - Arn
+    Value: !GetAtt adminRole.Arn
     Export:
       Name: awseventsrulecto3
 
   BatchJobDefinitionArn:
-    Value:
-      Ref: batchJobDefinition
+    Value: !Ref batchJobDefinition
     Export:
       Name: awseventsrulecto4
 
   BatchJobQueueArn:
-    Value:
-      Ref: batchJobQueue
+    Value: !Ref batchJobQueue
     Export:
       Name: awseventsrulecto5
 
-  DeadLetterQueueArn:
-    Value:
-      Fn::GetAtt:
-        - deadLetterQueue
-        - Arn
+  sqsQueueArn:
+    Value: !GetAtt sqsQueue.Arn
     Export:
       Name: awseventsrulecto6
 
@@ -253,35 +339,76 @@ Outputs:
       Name: awseventsrulecto7
 
   BasicSubnetId:
-    Value:
-      Ref: basicSubnet
+    Value: !Ref basicSubnet
     Export:
       Name: awseventsrulecto8
 
   ecsCapacityProviderName:
-    Value:
-      Ref: ecsCapacityProvider
+    Value: !Ref ecsCapacityProvider
     Export:
       Name: awseventsrulecto9
 
   ecsTaskDefinitionArn:
-    Value:
-      Ref: ecsTaskDefinition
+    Value: !Ref ecsTaskDefinition
     Export:
       Name: awseventsrulecto10
 
   ecsClusterEc2Arn:
-    Value:
-      Fn::GetAtt:
-        - ecsClusterEc2
-        - Arn
+    Value: !GetAtt ecsClusterEc2.Arn
     Export:
       Name: awseventsrulecto11
 
   ecsClusterFargateArn:
-    Value:
-      Fn::GetAtt:
-        - ecsClusterFargate
-        - Arn
+    Value: !GetAtt ecsClusterFargate.Arn
     Export:
       Name: awseventsrulecto12
+
+  apiGatewayArn:
+    Value: !Sub
+      - 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGatewayApi}/${apiGatewayDeployment}/POST/*'
+      - apiGatewayApi: !Ref apiGatewayApi
+        apiGatewayDeployment: !Ref apiGatewayDeployment
+    Export:
+      Name: awseventsrulecto13
+
+  kinesisStreamArn:
+    Value: !GetAtt kinesisStream.Arn
+    Export:
+      Name: awseventsrulecto14
+
+  secret:
+    Value: !Ref secret
+    Export:
+      Name: awseventsrulecto15
+
+  redshiftArn:
+    Value: !Sub
+      - 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:cluster:${clusterName}'
+      - clusterName: !Ref redshiftCluster
+    Export:
+      Name: awseventsrulecto16
+
+  ec2InstanceId:
+    Value: !Ref ec2Instance
+    Export:
+      Name: awseventsrulecto17
+
+  runCommandArn:
+    Value: !Sub 
+      - 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:document/${documentName}'
+      - documentName: !Ref runCommand
+    Export:
+      Name: awseventsrulecto18
+
+  sageMakerPipelineArn:
+    Value:  !Sub 
+      - 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:pipeline/${pipelineId}'
+      - pipelineId: !Ref sageMakerPipeline
+    Export:
+      Name: awseventsrulecto19
+
+
+  sqsQueueFifoArn:
+    Value: !GetAtt sqsQueueFifo.Arn
+    Export:
+      Name: awseventsrulecto20

@@ -1,21 +1,27 @@
 package software.amazon.events.rule;
 
-// TODO: replace all usage of SdkClient with your service client type, e.g; YourServiceAsyncClient
-// import software.amazon.awssdk.services.yourservice.YourServiceAsyncClient;
-
-import software.amazon.awssdk.awscore.AwsResponse;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResultEntry;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
+import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 
+import java.util.HashSet;
 
 public class CreateHandler extends BaseHandlerStd {
-    private Logger logger;
+
+    public static final int MAX_RETRIES_ON_PUT_TARGETS = 5;
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
         final AmazonWebServicesClientProxy proxy,
@@ -26,88 +32,125 @@ public class CreateHandler extends BaseHandlerStd {
 
         this.logger = logger;
 
-        // TODO: Adjust Progress Chain according to your implementation
-        // https://github.com/aws-cloudformation/cloudformation-cli-java-plugin/blob/master/src/main/java/software/amazon/cloudformation/proxy/CallChain.java
-
         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
 
             // STEP 1 [check if resource already exists]
-            // if target API does not support 'ResourceAlreadyExistsException' then following check is required
-            // for more information -> https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-test-contract.html
             .then(progress ->
-                // STEP 1.0 [initialize a proxy context]
-                // If your service API is not idempotent, meaning it does not distinguish duplicate create requests against some identifier (e.g; resource Name)
-                // and instead returns a 200 even though a resource already exists, you must first check if the resource exists here
-                // NOTE: If your service API throws 'ResourceAlreadyExistsException' for create requests this method is not necessary
                 proxy.initiate("AWS-Events-Rule::Create::PreExistanceCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
+                .makeServiceCall((awsRequest, client) -> {
+                    try {
+                        proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
+                        callbackContext.setRuleExists(true);
+                    }
+                    catch (ResourceNotFoundException e) {
+                        // All goood...
+                        logger.log(String.format("StackId: %s: %s [%s] does not yet exist.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
+                        callbackContext.setRuleExists(false);
+                    }
 
-                    // STEP 1.1 [TODO: construct a body of a request]
-                    .translateToServiceRequest(Translator::translateToReadRequest)
+                    return DescribeRuleResponse.builder().build();
+                })
+                .done(awsResponse -> {
 
-                    // STEP 1.2 [TODO: make an api call]
-                    .makeServiceCall((awsRequest, client) -> {
-                        AwsResponse awsResponse = null;
-
-                        // TODO: add custom read resource logic
-
-                        logger.log(String.format("%s has successfully been read.", ResourceModel.TYPE_NAME));
-                        return awsResponse;
-                    })
-
-                    // STEP 1.3 [TODO: handle exception]
-                    .handleError((awsRequest, exception, client, model, context) -> {
-                        // TODO: uncomment when ready to implement
-                        // if (exception instanceof CfnNotFoundException)
-                        //     return ProgressEvent.progress(model, context);
-                        // throw exception;
-                        return ProgressEvent.progress(model, context);
-                    })
-                    .progress()
+                    if (!callbackContext.isRuleExists()) {
+                        return ProgressEvent.progress(progress.getResourceModel(), progress.getCallbackContext());
+                    } else {
+                        return ProgressEvent.failed(progress.getResourceModel(), null, HandlerErrorCode.AlreadyExists,
+                                String.format("%s already exists", progress.getResourceModel().getName()));
+                    }
+                })
             )
 
             // STEP 2 [create/stabilize progress chain - required for resource creation]
             .then(progress ->
-                // If your service API throws 'ResourceAlreadyExistsException' for create requests then CreateHandler can return just proxy.initiate construction
-                // STEP 2.0 [initialize a proxy context]
-                // Implement client invocation of the create request through the proxyClient, which is already initialised with
-                // caller credentials, correct region and retry settings
-                proxy.initiate("AWS-Events-Rule::Create", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
-
-                    // STEP 2.1 [TODO: construct a body of a request]
-                    .translateToServiceRequest(Translator::translateToCreateRequest)
-
-                    // STEP 2.2 [TODO: make an api call]
+                proxy.initiate("AWS-Events-Rule::CreateRule", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags()))
                     .makeServiceCall((awsRequest, client) -> {
-                        AwsResponse awsResponse = null;
-                        try {
 
-                            // TODO: put your create resource code here
+                        PutRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putRule);
+                        progress.getResourceModel().setArn(awsResponse.ruleArn());
 
-                        } catch (final AwsServiceException e) {
-                            /*
-                            * While the handler contract states that the handler must always return a progress event,
-                            * you may throw any instance of BaseHandlerException, as the wrapper map it to a progress event.
-                            * Each BaseHandlerException maps to a specific error code, and you should map service exceptions as closely as possible
-                            * to more specific error codes
-                            */
-                            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
-                        }
-
-                        logger.log(String.format("%s successfully created.", ResourceModel.TYPE_NAME));
+                        logger.log(String.format("StackId: %s: %s [%s] successfully created.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                         return awsResponse;
                     })
-
-                    // STEP 2.3 [TODO: stabilize step is not necessarily required but typically involves describing the resource until it is in a certain status, though it can take many forms]
-                    // for more information -> https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-test-contract.html
-                    // If your resource requires some form of stabilization (e.g. service does not provide strong consistency), you will need to ensure that your code
-                    // accounts for any potential issues, so that a subsequent read/update requests will not cause any conflicts (e.g. NotFoundException/InvalidRequestException)
                     .stabilize((awsRequest, awsResponse, client, model, context) -> {
-                        // TODO: put your stabilization code here
 
-                        final boolean stabilized = true;
-                        logger.log(String.format("%s [%s] has been stabilized.", ResourceModel.TYPE_NAME, model.getPrimaryIdentifier()));
+                        boolean stabilized;
+
+                        try {
+                            proxyClient.injectCredentialsAndInvokeV2(
+                                    Translator.translateToDescribeRuleRequest(model),
+                                    proxyClient.client()::describeRule);
+
+                            stabilized = true;
+                        }
+                        catch (ResourceNotFoundException e) {
+                            stabilized = false;
+                        }
+
+                        logger.log(String.format("StackId: %s: %s [%s] has been stabilized: %s", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name(), stabilized));
                         return stabilized;
                     })
+                    .handleError(this::handleError)
+                    .progress()
+                )
+
+            .then(progress ->
+                proxy.initiate("AWS-Events-Rule::CreateTargets", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(Translator::translateToPutTargetsRequest)
+                    .makeServiceCall(((awsRequest, client) -> {
+                        PutTargetsResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
+
+                        logger.log(String.format("StackId: %s: %s [%s] successfully created.", request.getStackId(), "AWS::Events::Target", awsRequest.targets().size()));
+                        return awsResponse;
+                    }))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> {
+
+                        boolean stabilized;
+
+                        if (awsResponse.hasFailedEntries() && awsResponse.failedEntryCount() > 0) {
+                            if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
+                                logger.log(String.format("PutTargets has %s failed entries. Retrying...", awsResponse.failedEntryCount()));
+
+                                for (PutTargetsResultEntry failedEntry : awsResponse.failedEntries()) {
+                                    logger.log(failedEntry.errorMessage());
+                                }
+
+                                callbackContext.setRetryAttemptsForPutTargets(callbackContext.getRetryAttemptsForPutTargets() + 1);
+                                awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
+                                stabilized = false;
+                            } else {
+                                throw AwsServiceException.builder()
+                                        .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries").build())
+                                        .build();
+                            }
+                        }
+                        else {
+                            logger.log("Checking target stabilization.");
+
+                            ListTargetsByRuleResponse listTargetsResponse =  proxyClient.injectCredentialsAndInvokeV2(
+                                    Translator.translateToListTargetsByRuleRequest(model),
+                                    proxyClient.client()::listTargetsByRule);
+
+                            HashSet<String> targetIds = new HashSet<>();
+                            for (Target target : listTargetsResponse.targets()) {
+                                targetIds.add(target.id());
+                            }
+
+                            stabilized = true;
+                            for (Target target : awsRequest.targets()) {
+                                if (!targetIds.contains(target.id())) {
+                                    stabilized = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        logger.log(String.format("StackId: %s: %s [%s] have been stabilized: %s", request.getStackId(), "AWS::Events::Target", awsRequest.targets().size(), stabilized));
+                        return stabilized;
+                    })
+                    .handleError(this::handleError)
                     .progress()
                 )
 
