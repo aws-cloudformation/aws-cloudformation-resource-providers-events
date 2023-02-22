@@ -1,18 +1,14 @@
 package software.amazon.events.rule;
 
 import org.apache.commons.collections4.CollectionUtils;
-import software.amazon.awssdk.awscore.AwsRequest;
 import software.amazon.awssdk.awscore.AwsResponse;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
-import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
-import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
@@ -146,7 +142,7 @@ public class UpdateHandler extends BaseHandlerStd {
             // STEP 5 [Create/Update Targets]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::dummmyTranslator)
+                    .translateToServiceRequest(Translator::dummyTranslator)
                     .makeServiceCall((awsRequest, client) -> {
                         PutTargetsResponse awsResponse = null;
 

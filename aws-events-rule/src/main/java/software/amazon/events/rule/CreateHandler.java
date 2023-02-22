@@ -62,7 +62,7 @@ public class CreateHandler extends BaseHandlerStd {
                 })
             )
 
-            // STEP 2 [create/stabilize progress chain - required for resource creation]
+            // STEP 2 [create/stabilize rule]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::CreateRule", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags()))
@@ -96,6 +96,7 @@ public class CreateHandler extends BaseHandlerStd {
                     .progress()
                 )
 
+            // STEP 3 [create/stabilize targets]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::CreateTargets", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToPutTargetsRequest)
@@ -126,7 +127,6 @@ public class CreateHandler extends BaseHandlerStd {
                                         .build();
                             }
                         }
-                        else {
                             logger.log("Checking target stabilization.");
 
                             ListTargetsByRuleResponse listTargetsResponse =  proxyClient.injectCredentialsAndInvokeV2(
@@ -145,7 +145,6 @@ public class CreateHandler extends BaseHandlerStd {
                                     break;
                                 }
                             }
-                        }
 
                         logger.log(String.format("StackId: %s: %s [%s] have been stabilized: %s", request.getStackId(), "AWS::Events::Target", awsRequest.targets().size(), stabilized));
                         return stabilized;
