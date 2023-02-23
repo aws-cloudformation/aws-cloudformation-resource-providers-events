@@ -1,8 +1,6 @@
 package software.amazon.events.rule;
 
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
@@ -11,10 +9,7 @@ import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 public class ReadHandler extends BaseHandlerStd {
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
             final AmazonWebServicesClientProxy proxy,
@@ -24,55 +19,34 @@ public class ReadHandler extends BaseHandlerStd {
             final Logger logger) {
 
         this.logger = logger;
-        final ResourceModel model = request.getDesiredResourceState();
-        AtomicReference<ResourceModel.ResourceModelBuilder> finalResourceModel = new AtomicReference<>();
 
-        return ProgressEvent.progress(model, callbackContext)
+        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
 
-            // STEP 1 [Read Rule]
+            // STEP 1 [read rule]
             .then(progress -> proxy.initiate("AWS-Events-Rule::ReadRule", proxyClient, request.getDesiredResourceState(), callbackContext)
                 .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
-                .makeServiceCall((awsRequest, client) -> {
-                    logger.log("Model Rule name: " + model.getName());
-                    logger.log("Request Rule name: " + awsRequest.name());
-                    logger.log("Model Arn: " + model.getArn());
-
-                    DescribeRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
-
-                    logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
-                    return awsResponse;
-                })
+                .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
                 .handleError(this::handleError)
                 .done(awsResponse -> {
-
-                    finalResourceModel.set(Translator.translateFromDescribeRuleResponse(awsResponse));
-
-                    return ProgressEvent.progress(model, callbackContext);
+                    // Build the Rule part of the response
+                    callbackContext.setResourceModelBuilder(Translator.translateFromDescribeRuleResponse(awsResponse));
+                    return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
                 })
             )
 
-            // STEP 2 [List Targets]
+            // STEP 2 [list targets]
             .then(progress -> proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, request.getDesiredResourceState(), callbackContext)
                 .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
-                .makeServiceCall((awsRequest, client) -> {
-                    ListTargetsByRuleResponse awsResponse = null;
-                    awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::listTargetsByRule);
-
-                    logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), "AWS::Events::Target", awsResponse.targets().size()));
-                    return awsResponse;
-                })
-
+                .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
                 .handleError(this::handleError)
-
-                // Add the list of Targets to the Response
                 .done(awsResponse -> {
-
+                    // Add the list of Targets to the response
                     if (awsResponse.hasTargets()) {
-                        finalResourceModel.get().targets(Translator.translateFromListTargetsByRuleResponse(awsResponse));
+                        callbackContext.getResourceModelBuilder().targets(Translator.translateFromListTargetsByRuleResponse(awsResponse));
                     }
-
-                    return ProgressEvent.defaultSuccessHandler(finalResourceModel.get().build());
+                    return ProgressEvent.defaultSuccessHandler(callbackContext.getResourceModelBuilder().build());
                 })
             );
     }
+
 }

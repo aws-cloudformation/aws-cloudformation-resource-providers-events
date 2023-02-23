@@ -1,25 +1,17 @@
 package software.amazon.events.rule;
 
 import org.apache.commons.collections4.CollectionUtils;
-import software.amazon.awssdk.awscore.AwsResponse;
-import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 
 import java.util.ArrayList;
 
 public class UpdateHandler extends BaseHandlerStd {
-
-    public static final int MAX_RETRIES_ON_PUT_TARGETS = 5;
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
         final AmazonWebServicesClientProxy proxy,
@@ -30,69 +22,43 @@ public class UpdateHandler extends BaseHandlerStd {
 
         this.logger = logger;
 
-        ArrayList<String> targetIdsToDelete = new ArrayList<>();
-
         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
 
             // STEP 1 [check if resource already exists]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
-                    .makeServiceCall((awsRequest, client) -> {
-
-                        proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
-
-                        logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
-                        return null;
-                    })
+                    .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .progress()
             )
 
-            // STEP 2 [Update the Rule]
+            // STEP 2 [update the rule]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::Rule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags()))
-                    .makeServiceCall((awsRequest, client) -> {
-
-                        AwsResponse awsResponse;
-
-                        // Update Rule itself
-                        awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putRule);
-
-                        logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
-                        return awsResponse;
-                    })
-                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> {
-
-                        final boolean stabilized = true;
-
-                        logger.log(String.format("StackId: %s: %s [%s] update has stabilized: %s", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name(), stabilized));
-                        return stabilized;
-                    })
+                    .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, model, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .progress()
             )
 
-            // STEP 3 [Get list of existing Targets]
+            // STEP 3 [get list of existing targets]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
-                    .makeServiceCall((awsRequest, client) -> {
-
-                        // List existing targets
-                        ListTargetsByRuleResponse existingTargetsResponse = proxyClient.injectCredentialsAndInvokeV2(
-                                awsRequest,
-                                proxyClient.client()::listTargetsByRule);
+                    .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
+                    .handleError(this::handleError)
+                    .done(awsResponse -> {
+                        // Record the list of targets to be deleted.
 
                         // Create lists of ids
                         ArrayList<String> existingTargetIds = new ArrayList<>();
                         ArrayList<String> modelTargetIds = new ArrayList<>();
 
                         // Build the list of Targets ids that already exist
-                        if (existingTargetsResponse.hasTargets()) {
-                            for (Target target : existingTargetsResponse.targets()) {
+                        if (awsResponse.hasTargets()) {
+                            for (Target target : awsResponse.targets()) {
                                 existingTargetIds.add(target.id());
                             }
                         }
@@ -105,94 +71,35 @@ public class UpdateHandler extends BaseHandlerStd {
                         }
 
                         // Subtract model target ids from existing target ids to get the list of Targets to delete
-                        targetIdsToDelete.addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
+                        callbackContext.setTargetIdsToDelete(new ArrayList<>());
+                        callbackContext.getTargetIdsToDelete().addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
 
-                        logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", request.getStackId(), "AWS::Events::Target", existingTargetsResponse.targets().size()));
-                        return null;
+                        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
                     })
-                    .handleError(this::handleError)
-                    .progress()
             )
 
-            // STEP 4 [Delete Targets]
+            // STEP 4 [delete extra targets]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, targetIdsToDelete))
-                    .makeServiceCall((awsRequest, client) -> {
-
-                        // Delete targets that should not exist after update
-                        if (targetIdsToDelete.size() > 0) {
-                            proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::removeTargets);
-                        }
-                        logger.log(String.format("StackId: %s: %s [%s] has successfully been deleted.", request.getStackId(), "AWS::Events::Target", targetIdsToDelete));
-                        return null;
-                    })
-
-                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> {
-                        final boolean stabilized = true;
-
-                        logger.log(String.format("StackId: %s: %s [%s] delete has stabilized: %s", request.getStackId(), "AWS::Events::Target", targetIdsToDelete, stabilized));
-                        return stabilized;
-                    })
+                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, callbackContext.getTargetIdsToDelete()))
+                    .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsRequest, awsResponse, client, model, callbackContext, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
                     .handleError(this::handleError)
                     .progress()
             )
 
-            // STEP 5 [Create/Update Targets]
+            // STEP 5 [put targets]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::dummyTranslator)
-                    .makeServiceCall((awsRequest, client) -> {
-                        PutTargetsResponse awsResponse = null;
-
-                        if (progress.getResourceModel().getTargets() != null) {
-                            awsRequest = Translator.translateToPutTargetsRequest(progress.getResourceModel());
-
-                            // Create resulting list of target ids
-                            awsResponse = proxyClient.injectCredentialsAndInvokeV2((PutTargetsRequest) awsRequest, proxyClient.client()::putTargets);
-
-                            logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", request.getStackId(), "AWS::Events::Target", ((PutTargetsRequest) awsRequest).targets().size()));
-                        }
-                        return awsResponse;
-                    })
-
-                    // TODO: Make sure this doesn't need to be stabilized. If not, delete this.
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> {
-                        boolean stabilized;
-
-                        if (progress.getResourceModel().getTargets() != null) {
-
-                            if (awsResponse.hasFailedEntries() && awsResponse.failedEntryCount() > 0) {
-                                if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
-                                    callbackContext.setRetryAttemptsForPutTargets(callbackContext.getRetryAttemptsForPutTargets() + 1);
-                                    awsRequest = Translator.translateToPutTargetsRequest(progress.getResourceModel());
-                                    awsResponse = proxyClient.injectCredentialsAndInvokeV2((PutTargetsRequest) awsRequest, proxyClient.client()::putTargets);
-
-                                    stabilized = false;
-                                } else {
-                                    throw AwsServiceException.builder()
-                                            .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries").build())
-                                            .build();
-                                }
-                            }
-                            else {
-                                stabilized = true;
-                            }
-
-                            logger.log(String.format("StackId: %s: %s [%s] update has stabilized: %s", request.getStackId(), "AWS::Events::Target", progress.getResourceModel().getTargets().size(), stabilized));
-                        }
-                        else {
-                            stabilized = true;
-                        }
-
-                        return stabilized;
-                    })
+                    .translateToServiceRequest(Translator::translateToPutTargetsRequest)
+                    .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .progress()
             )
 
-            // STEP 6 [TODO: describe call/chain to return the resource model]
+            // STEP 6 [describe call/chain to return the resource model]
             .then(progress -> new ReadHandler().handleRequest(proxy, request, callbackContext, proxyClient, logger));
     }
+
 }

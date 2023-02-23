@@ -9,13 +9,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.cloudwatchevents.model.*;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
@@ -88,8 +82,11 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .arn("TargetArn")
                 .build());
 
-        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
+        final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
                 .targets(responseTargets)
+                .build();
+
+        final ListTargetsByRuleResponse listTargetsByRuleResponse2 = ListTargetsByRuleResponse.builder()
                 .build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
@@ -98,14 +95,19 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final DeleteRuleResponse deleteRuleResponse = DeleteRuleResponse.builder()
                 .build();
 
+
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse);
+                .thenReturn(listTargetsByRuleResponse1)
+                .thenReturn(listTargetsByRuleResponse2);
 
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
 
         when(proxyClient.client().deleteRule(any(DeleteRuleRequest.class)))
                 .thenReturn(deleteRuleResponse);
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenThrow(ResourceNotFoundException.class);
 
         // RUN
 

@@ -1,7 +1,6 @@
 package software.amazon.events.rule;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import software.amazon.awssdk.awscore.AwsRequest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -33,7 +32,6 @@ import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsReque
 import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.CloudWatchEventsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.CapacityProviderStrategyItem;
 import software.amazon.awssdk.services.cloudwatchevents.model.PlacementConstraint;
 import software.amazon.awssdk.services.cloudwatchevents.model.Tag;
@@ -87,40 +85,46 @@ public class Translator {
    * @return A PutTargetsRequest
    */
   static PutTargetsRequest translateToPutTargetsRequest(final ResourceModel model) {
-    CompositeId compositeId = new CompositeId(model);
+    PutTargetsRequest putTargetsRequest = null;
 
-    ArrayList<Target> targets = new ArrayList<Target>();
+    if (model.getTargets() != null) {
+      CompositeId compositeId = new CompositeId(model);
 
-    for (software.amazon.events.rule.Target target : model.getTargets()) {
-      Target.Builder targetBuilder = Target.builder();
+      ArrayList<Target> targets = new ArrayList<>();
 
-      addBatchParameters(targetBuilder, target.getBatchParameters());
-      addDeadLetterConfig(targetBuilder, target.getDeadLetterConfig());
-      addEcsParameters(targetBuilder, target.getEcsParameters());
-      addHttpParameters(targetBuilder, target.getHttpParameters());
-      addInputTransformer(targetBuilder, target.getInputTransformer());
-      addKinesisParameters(targetBuilder, target.getKinesisParameters());
-      addRedshiftDataParameters(targetBuilder, target.getRedshiftDataParameters());
-      addRetryPolicy(targetBuilder, target.getRetryPolicy());
-      addRunCommandParameters(targetBuilder, target.getRunCommandParameters());
-      addSqsParameters(targetBuilder, target.getSqsParameters());
-      addSageMakerPipelineParameters(targetBuilder, target.getSageMakerPipelineParameters());
+      for (software.amazon.events.rule.Target target : model.getTargets()) {
+        Target.Builder targetBuilder = Target.builder();
 
-      targets.add(targetBuilder
-              .arn(target.getArn())
-              .id(target.getId())
-              .input(target.getInput())
-              .inputPath(target.getInputPath())
-              .roleArn(target.getRoleArn())
-              .build()
-      );
+        addBatchParameters(targetBuilder, target.getBatchParameters());
+        addDeadLetterConfig(targetBuilder, target.getDeadLetterConfig());
+        addEcsParameters(targetBuilder, target.getEcsParameters());
+        addHttpParameters(targetBuilder, target.getHttpParameters());
+        addInputTransformer(targetBuilder, target.getInputTransformer());
+        addKinesisParameters(targetBuilder, target.getKinesisParameters());
+        addRedshiftDataParameters(targetBuilder, target.getRedshiftDataParameters());
+        addRetryPolicy(targetBuilder, target.getRetryPolicy());
+        addRunCommandParameters(targetBuilder, target.getRunCommandParameters());
+        addSqsParameters(targetBuilder, target.getSqsParameters());
+        addSageMakerPipelineParameters(targetBuilder, target.getSageMakerPipelineParameters());
+
+        targets.add(targetBuilder
+                .arn(target.getArn())
+                .id(target.getId())
+                .input(target.getInput())
+                .inputPath(target.getInputPath())
+                .roleArn(target.getRoleArn())
+                .build()
+        );
+      }
+
+      putTargetsRequest = PutTargetsRequest.builder()
+              .eventBusName(compositeId.eventBusName)
+              .rule(compositeId.ruleName)
+              .targets(targets)
+              .build();
     }
 
-    return PutTargetsRequest.builder()
-            .eventBusName(compositeId.eventBusName)
-            .rule(compositeId.ruleName)
-            .targets(targets)
-            .build();
+    return putTargetsRequest;
   }
 
   // READ
@@ -782,15 +786,6 @@ public class Translator {
   }
 
   // OTHER
-
-  /**
-   * No-op.
-   * @param model A ResourceModel
-   * @return null
-   */
-  static CloudWatchEventsRequest dummyTranslator(final ResourceModel model) {
-    return null;
-  }
 
   private static <T> Stream<T> streamOfOrEmpty(final Collection<T> collection) {
     return Optional.ofNullable(collection)

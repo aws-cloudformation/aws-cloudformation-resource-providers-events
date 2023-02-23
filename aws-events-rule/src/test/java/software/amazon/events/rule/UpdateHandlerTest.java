@@ -143,7 +143,9 @@ public class UpdateHandlerTest extends AbstractTestBase {
         putRule
         listTargetsByRule
         removeTargets
+        listTargetsByRule
         putTargets
+        listTargetsByRule
          */
 
         Collection<Target> responseTargets1 = new ArrayList<>();
@@ -568,7 +570,9 @@ public class UpdateHandlerTest extends AbstractTestBase {
         putRule
         listTargetsByRule
         removeTargets
+        listTargetsByRule
         putTargets
+        listTargetsByRule
 
         describeRule
         listTargetsByRule
@@ -622,7 +626,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
                 .thenReturn(listTargetsByRuleResponse1)
                 .thenReturn(listTargetsByRuleResponse2)
-                .thenReturn(listTargetsByRuleResponse1);
+                .thenReturn(listTargetsByRuleResponse2);
 
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
@@ -816,7 +820,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
                 .thenReturn(listTargetsByRuleResponse1)
                 .thenReturn(listTargetsByRuleResponse2)
-                .thenReturn(listTargetsByRuleResponse1);
+                .thenReturn(listTargetsByRuleResponse2);
 
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
@@ -842,7 +846,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         assertThat(response.getMessage()).isNull();
         assertThat(response.getErrorCode()).isNull();
     }
-
 
     private Target convertTarget(software.amazon.events.rule.Target target) {
         Target.Builder targetBuilder = Target.builder();
