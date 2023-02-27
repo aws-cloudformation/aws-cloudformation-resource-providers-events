@@ -74,7 +74,7 @@ public class CreateHandler extends BaseHandlerStd {
                 )
 
             // STEP 4 [describe call/chain to return the resource model]
-            .then(progress -> new ReadHandler().handleRequest(proxy, request, callbackContext, proxyClient, logger));
+            .then(progress -> ProgressEvent.defaultSuccessHandler(progress.getResourceModel()));
     }
 
 }

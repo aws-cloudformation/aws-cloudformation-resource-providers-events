@@ -99,7 +99,7 @@ public class UpdateHandler extends BaseHandlerStd {
             )
 
             // STEP 6 [describe call/chain to return the resource model]
-            .then(progress -> new ReadHandler().handleRequest(proxy, request, callbackContext, proxyClient, logger));
+            .then(progress -> ProgressEvent.defaultSuccessHandler(progress.getResourceModel()));
     }
 
 }
