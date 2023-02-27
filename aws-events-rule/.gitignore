@@ -25,4 +25,6 @@ sam-tests/
 .attach_pid*
 *.zip
 
+# TODO add back
 contract-tests-artifacts/
+settings.internal.json
