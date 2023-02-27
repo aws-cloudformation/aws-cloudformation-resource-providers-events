@@ -24,3 +24,5 @@ sam-tests/
 
 .attach_pid*
 *.zip
+
+contract-tests-artifacts/
