@@ -30,7 +30,10 @@ public class UpdateHandler extends BaseHandlerStd {
                     .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
                     .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress()
+                    .done(awsResponse -> {
+                        progress.getResourceModel().setArn(awsResponse.arn());
+                        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
+                    })
             )
 
             // STEP 2 [update the rule]

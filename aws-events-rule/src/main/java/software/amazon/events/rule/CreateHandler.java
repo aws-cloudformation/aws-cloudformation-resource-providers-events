@@ -60,7 +60,11 @@ public class CreateHandler extends BaseHandlerStd {
                     .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, model, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress() // TODO 30
+                    .done(awsResponse -> {
+                        progress.getResourceModel().setArn(awsResponse.ruleArn());
+                        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
+                    })
+                    //.progress() // TODO 30
                 )
 
             // STEP 3 [create/stabilize targets]
