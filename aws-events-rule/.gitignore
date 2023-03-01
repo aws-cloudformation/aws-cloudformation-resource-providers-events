@@ -27,4 +27,5 @@ sam-tests/
 
 # TODO add back
 contract-tests-artifacts/
+example_inputs
 settings.internal.json

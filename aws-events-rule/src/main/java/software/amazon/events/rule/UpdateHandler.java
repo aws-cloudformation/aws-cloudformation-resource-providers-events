@@ -89,8 +89,9 @@ public class UpdateHandler extends BaseHandlerStd {
             )
 
             // STEP 5 [put targets]
-            .then(progress ->
-                proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+            .then(progress -> progress.getResourceModel().getTargets() == null ?
+                    progress :
+                    proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToPutTargetsRequest)
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))

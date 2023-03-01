@@ -58,7 +58,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @return Whether it is safe to move on to stabilization
      */
     static boolean mitigateFailedPutTargets(PutTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, CallbackContext callbackContext, Logger logger) {
-        boolean hasFailedEntries = callbackContext.getPutTargetsResponse().hasFailedEntries() && callbackContext.getPutTargetsResponse().failedEntryCount() > 0;
+        boolean hasFailedEntries = callbackContext.getPutTargetsResponse().hasFailedEntries() && callbackContext.getPutTargetsResponse().failedEntries().size() > 0;
 
         if (hasFailedEntries) {
             if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
@@ -85,7 +85,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
                 callbackContext.setPutTargetsResponse(proxyClient.injectCredentialsAndInvokeV2(putTargetsRequest, proxyClient.client()::putTargets));
             } else {
                 throw AwsServiceException.builder()
-                        .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries").build())
+                        .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries (put)").build())
                         .build();
             }
         }
@@ -101,7 +101,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @return Whether it is safe to move on to stabilization
      */
     static boolean mitigateFailedRemoveTargets(ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger) {
-      boolean hasFailedEntries = callbackContext.getRemoveTargetsResponse().hasFailedEntries() && callbackContext.getRemoveTargetsResponse().failedEntryCount() > 0;
+      boolean hasFailedEntries = callbackContext.getRemoveTargetsResponse().hasFailedEntries() && callbackContext.getRemoveTargetsResponse().failedEntries().size() > 0;
 
       if (hasFailedEntries) {
           if (callbackContext.getRetryAttemptsForRemoveTargets() < MAX_RETRIES_ON_REMOVE_TARGETS) {
@@ -117,11 +117,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
               RemoveTargetsRequest removeTargetsRequest = Translator.translateToRemoveTargetsRequest(model, failedEntryIds);
 
               // Retry request
-              callbackContext.setRetryAttemptsForRemoveTargets(callbackContext.getRetryAttemptsForPutTargets() + 1);
+              callbackContext.setRetryAttemptsForRemoveTargets(callbackContext.getRetryAttemptsForRemoveTargets() + 1);
               callbackContext.setRemoveTargetsResponse(proxyClient.injectCredentialsAndInvokeV2(removeTargetsRequest, proxyClient.client()::removeTargets));
           } else {
+              logger.log("Failed to remove Targets.");
               throw AwsServiceException.builder()
-                      .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries").build())
+                      .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries (remove)").build())
                       .build();
           }
       }
@@ -165,41 +166,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     }
 
     /**
-     * Determines whether RemoveTargets has stabilized.
-     * @param awsRequest The request for which stabilization will be checked
-     * @param proxyClient The client used to read the resource
-     * @param model The model used to generate a read request
-     * @param logger The logger
-     * @param stackId The stack id (sued for logging
-     * @return Whether the request has stabilized
-     */
-    private static boolean isStabilizedRemoveTargets(RemoveTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, Logger logger, String stackId) {
-        boolean stabilized = true;
-
-        logger.log("Checking target stabilization.");
-
-        ListTargetsByRuleResponse listTargetsResponse =  proxyClient.injectCredentialsAndInvokeV2(
-                Translator.translateToListTargetsByRuleRequest(model),
-                proxyClient.client()::listTargetsByRule);
-
-        HashSet<String> targetIds = new HashSet<>();
-        for (Target target : listTargetsResponse.targets()) {
-            targetIds.add(target.id());
-        }
-
-        for (String target : awsRequest.ids()) {
-            if (targetIds.contains(target)) {
-                stabilized = false;
-                break;
-            }
-        }
-
-        logger.log(String.format("StackId: %s: %s [%s] delete has stabilized: %s", stackId, "AWS::Events::Target", awsRequest.ids(), stabilized));
-
-        return stabilized;
-    }
-
-    /**
      * Determines whether PutRule has stabilized.
      * @param proxyClient The client used to read the resource
      * @param model The model used to generate a read request
@@ -222,29 +188,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         }
 
         logger.log(String.format("StackId: %s: %s [%s] has been stabilized: %s", stackId, ResourceModel.TYPE_NAME, model.getName(), stabilized));
-        return stabilized;
-    }
-
-    /**
-     * Determines whether DeleteRule has stabilized.
-     * @param proxyClient The client used to read the resource
-     * @param model The model used to generate a read request
-     * @param logger The logger
-     * @param stackId The stack id (sued for logging
-     * @return Whether the request has stabilized
-     */
-    static boolean stabilizeDeleteRule(ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, Logger logger, String stackId) {
-        boolean stabilized;
-
-        try {
-            describeRule(Translator.translateToDescribeRuleRequest(model), proxyClient, logger, stackId);
-            stabilized = false;
-        }
-        catch (ResourceNotFoundException e) {
-            stabilized = true;
-        }
-
-        logger.log(String.format("StackId: %s: %s [%s] deletion has stabilized: %s", stackId, ResourceModel.TYPE_NAME, model.getName(), stabilized));
         return stabilized;
     }
 
@@ -297,8 +240,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         }
 
         boolean stabilized = targetIdsToDelete.size() == 0 ||
-                (mitigateFailedRemoveTargets(proxyClient, model, callbackContext, logger) &&
-                isStabilizedRemoveTargets(awsRequest, proxyClient, model, logger, stackId));
+                mitigateFailedRemoveTargets(proxyClient, model, callbackContext, logger);
 
         logger.log(String.format("StackId: %s: %s [%s] delete has stabilized: %s", stackId, "AWS::Events::Target", targetIdsToDelete, stabilized));
         return stabilized;
@@ -454,6 +396,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     } else if (e instanceof AwsServiceException) {
       if (((AwsServiceException) e).awsErrorDetails().equals("")) { // Do not touch. IDK man...
         ex = new CfnInternalFailureException(e);
+      } if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (put)")) {
+        ex = new CfnInternalFailureException(e);
+        return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to create/update");
+      } if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (remove)")) {
+        ex = new CfnInternalFailureException(e);
+        return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to be removed");
       } else {
         ex = new CfnGeneralServiceException(e);
       }

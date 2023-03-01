@@ -34,13 +34,14 @@ public class DeleteHandler extends BaseHandlerStd {
             )
 
             // STEP 2 [delete targets]
-            .then(progress ->
-                proxy.initiate("AWS-Events-Rule::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+            .then(progress -> !callbackContext.getListTargetsByRuleResponse().hasTargets() || callbackContext.getListTargetsByRuleResponse().targets().isEmpty() ?
+                        progress :
+                        proxy.initiate("AWS-Events-Rule::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, callbackContext.getListTargetsByRuleResponse()))
                     .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId(), awsRequest.ids()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsRequest, awsResponse, client, model, callbackContext, logger, request.getStackId(), awsRequest.ids()))
                     .handleError(this::handleError)
-                    .progress()
+                    .progress() // TODO 30
             )
 
             // STEP 3 [delete rule]
@@ -48,9 +49,8 @@ public class DeleteHandler extends BaseHandlerStd {
                 proxy.initiate("AWS-Events-Rule::DeleteRule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToDeleteRuleRequest)
                     .makeServiceCall((awsRequest, client) -> deleteRule(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeDeleteRule(client, model, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress()
+                    .progress() // TODO 30
             )
 
             // STEP 4 [return the successful progress event without resource model]

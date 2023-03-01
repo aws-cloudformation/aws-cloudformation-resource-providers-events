@@ -60,17 +60,17 @@ public class CreateHandler extends BaseHandlerStd {
                     .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, model, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress()
+                    .progress() // TODO 30
                 )
 
             // STEP 3 [create/stabilize targets]
-            .then(progress ->
-                proxy.initiate("AWS-Events-Rule::CreateTargets", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
+            .then(progress -> progress.getResourceModel().getTargets() == null ?
+                            progress :
+                            proxy.initiate("AWS-Events-Rule::CreateTargets", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToPutTargetsRequest)
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress()
+                    .progress() // TODO 30
                 )
 
             // STEP 4 [describe call/chain to return the resource model]

@@ -82,11 +82,8 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .arn("TargetArn")
                 .build());
 
-        final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
+        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
                 .targets(responseTargets)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse2 = ListTargetsByRuleResponse.builder()
                 .build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
@@ -97,17 +94,13 @@ public class DeleteHandlerTest extends AbstractTestBase {
 
 
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse1)
-                .thenReturn(listTargetsByRuleResponse2);
+                .thenReturn(listTargetsByRuleResponse);
 
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
 
         when(proxyClient.client().deleteRule(any(DeleteRuleRequest.class)))
                 .thenReturn(deleteRuleResponse);
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenThrow(ResourceNotFoundException.class);
 
         // RUN
 
