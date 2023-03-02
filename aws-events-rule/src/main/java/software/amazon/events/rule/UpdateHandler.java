@@ -82,8 +82,9 @@ public class UpdateHandler extends BaseHandlerStd {
             )
 
             // STEP 4 [delete extra targets]
-            .then(progress ->
-                proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+            .then(progress -> callbackContext.getTargetIdsToDelete() == null || callbackContext.getTargetIdsToDelete().size() == 0 ?
+                        progress :
+                        proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, callbackContext.getTargetIdsToDelete()))
                     .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsRequest, awsResponse, client, model, callbackContext, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
@@ -92,9 +93,9 @@ public class UpdateHandler extends BaseHandlerStd {
             )
 
             // STEP 5 [put targets]
-            .then(progress -> progress.getResourceModel().getTargets() == null ?
-                    progress :
-                    proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+            .then(progress -> progress.getResourceModel().getTargets() == null || progress.getResourceModel().getTargets().size() == 0 ?
+                        progress :
+                        proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToPutTargetsRequest)
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))

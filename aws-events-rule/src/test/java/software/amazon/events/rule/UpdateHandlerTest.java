@@ -112,8 +112,12 @@ public class UpdateHandlerTest extends AbstractTestBase {
         Set<software.amazon.events.rule.Target> targets = new HashSet<>();
 
         targets.add(software.amazon.events.rule.Target.builder()
-                .id("TestLambdaFunctionId")
-                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId")
+                .id("TestLambdaFunctionId1")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId1")
+                .build());
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("TestLambdaFunctionId2")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId2")
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
@@ -137,17 +141,18 @@ public class UpdateHandlerTest extends AbstractTestBase {
          */
 
         Collection<Target> responseTargets1 = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets1.add(convertTarget(target));
-        }
+        responseTargets1.add(convertTarget(targets.iterator().next()));
         responseTargets1.add(Target.builder()
                 .id("ToDeleteId")
                 .arn("ToDeleteArn")
                 .build());
 
         Collection<Target> responseTargets2 = new ArrayList<>();
+        responseTargets2.add(convertTarget(targets.iterator().next()));
+
+        Collection<Target> responseTargets3 = new ArrayList<>();
         for (software.amazon.events.rule.Target target :targets) {
-            responseTargets2.add(convertTarget(target));
+            responseTargets3.add(convertTarget(target));
         }
 
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
@@ -169,6 +174,10 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(responseTargets2)
                 .build();
 
+        final ListTargetsByRuleResponse listTargetsByRuleResponse3 = ListTargetsByRuleResponse.builder()
+                .targets(responseTargets3)
+                .build();
+
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
                 .build();
 
@@ -183,7 +192,9 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
                 .thenReturn(listTargetsByRuleResponse1)
-                .thenReturn(listTargetsByRuleResponse2);
+                .thenReturn(listTargetsByRuleResponse2)
+                .thenReturn(listTargetsByRuleResponse2)
+                .thenReturn(listTargetsByRuleResponse3);
 
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
