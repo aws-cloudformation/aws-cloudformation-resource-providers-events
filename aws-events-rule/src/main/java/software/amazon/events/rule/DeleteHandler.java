@@ -39,7 +39,7 @@ public class DeleteHandler extends BaseHandlerStd {
                         proxy.initiate("AWS-Events-Rule::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, callbackContext.getListTargetsByRuleResponse()))
                     .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId(), awsRequest.ids()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsRequest, awsResponse, client, model, callbackContext, logger, request.getStackId(), awsRequest.ids()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, model, callbackContext, logger, request.getStackId(), awsRequest.ids()))
                     .handleError(this::handleError)
                     .progress() // TODO 30
             )

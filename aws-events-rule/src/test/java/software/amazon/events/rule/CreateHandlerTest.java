@@ -160,7 +160,14 @@ public class CreateHandlerTest extends AbstractTestBase {
             .build();
         request.getDesiredResourceState().setArn("arn");
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 
@@ -244,7 +251,14 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .build();
         request.getDesiredResourceState().setArn("arn");
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 

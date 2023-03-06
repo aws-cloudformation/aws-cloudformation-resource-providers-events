@@ -21,4 +21,5 @@ public class CallbackContext extends StdCallbackContext {
     private boolean ruleExists;
     private ArrayList<String> targetIdsToDelete;
     private ResourceModel.ResourceModelBuilder resourceModelBuilder;
+    private int completedPropagationDelays;
 }

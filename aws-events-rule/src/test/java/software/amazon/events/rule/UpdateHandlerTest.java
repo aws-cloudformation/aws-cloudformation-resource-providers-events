@@ -208,7 +208,14 @@ public class UpdateHandlerTest extends AbstractTestBase {
             .desiredResourceState(model)
             .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 
@@ -352,7 +359,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         // MODEL
 
-
         Set<software.amazon.events.rule.Target> targets = new HashSet<>();
 
         targets.add(software.amazon.events.rule.Target.builder()
@@ -427,7 +433,10 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 
@@ -551,7 +560,10 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 
@@ -795,7 +807,14 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 
@@ -989,7 +1008,14 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 
@@ -1001,6 +1027,98 @@ public class UpdateHandlerTest extends AbstractTestBase {
         assertThat(response.getMessage()).isNull();
         assertThat(response.getErrorCode()).isNull();
     }
+
+    @Test
+    public void handleRequest_ErrorTest() {
+        final UpdateHandler handler = new UpdateHandler();
+
+        String eventPatternString = String.join("",
+                "{",
+                "  \"source\": [",
+                "    \"aws.s3\"",
+                "  ],",
+                "  \"detail-type\": [",
+                "    \"Object created\"",
+                "  ],",
+                "  \"detail\": {",
+                "    \"bucket\": {",
+                "      \"name\": [",
+                "        \"testcdkstack-bucket43879c71-r2j3dsw4wp4z\"",
+                "      ]",
+                "    }",
+                "  }",
+                "}");
+
+        Map<String, Object> eventMapperMap = null;
+        try {
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        // MODEL
+
+        Set<software.amazon.events.rule.Target> targets = new HashSet<>();
+
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("TestLambdaFunctionId1")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId1")
+                .build());
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("TestLambdaFunctionId2")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId2")
+                .build());
+
+        final ResourceModel model = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(targets)
+                .build();
+
+        // MOCK
+
+        /*
+        describeRule
+        putRule
+        listTargetsByRule
+        removeTargets
+        listTargetsByRule
+        putTargets
+        listTargetsByRule
+         */
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .name(model.getName())
+                .description(model.getDescription())
+                .eventPattern(eventPatternString)
+                .state(model.getState())
+                .build();
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenReturn(describeRuleResponse);
+
+        when(proxyClient.client().putRule(any(PutRuleRequest.class)))
+                .thenThrow(InvalidEventPatternException.class);
+
+        // RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
+    }
+
 
     /**
      * A hacky way to avoid rewriting logic to convert ResourceModel Targets to AwsSdk Targets

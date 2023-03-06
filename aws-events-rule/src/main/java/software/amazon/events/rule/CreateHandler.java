@@ -62,9 +62,9 @@ public class CreateHandler extends BaseHandlerStd {
                     .handleError(this::handleError)
                     .done(awsResponse -> {
                         progress.getResourceModel().setArn(awsResponse.ruleArn());
-                        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
+
+                        return delayedProgress(progress, 30, 1);
                     })
-                    //.progress() // TODO 30
                 )
 
             // STEP 3 [create/stabilize targets]
@@ -74,7 +74,7 @@ public class CreateHandler extends BaseHandlerStd {
                     .translateToServiceRequest(Translator::translateToPutTargetsRequest)
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress() // TODO 30
+                    .done(awsResponse -> delayedProgress(progress, 30, 2))
                 )
 
             // STEP 4 [describe call/chain to return the resource model]

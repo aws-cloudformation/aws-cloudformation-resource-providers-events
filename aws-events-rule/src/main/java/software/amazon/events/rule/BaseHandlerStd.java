@@ -2,7 +2,6 @@ package software.amazon.events.rule;
 
 import static java.util.Objects.requireNonNull;
 
-import software.amazon.awssdk.awscore.AwsResponse;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
@@ -131,41 +130,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
   }
 
     /**
-     * Determines whether PutTargets has stabilized.
-     * @param awsRequest The request for which stabilization will be checked
-     * @param proxyClient The client used to read the resource
-     * @param model The model used to generate a read request
-     * @param logger The logger
-     * @param stackId The stack id (sued for logging
-     * @return Whether the request has stabilized
-     */
-    private static boolean isStabilizedPutTargets(PutTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, Logger logger, String stackId) {
-        boolean stabilized = true;
-
-        logger.log("Checking target stabilization.");
-
-        ListTargetsByRuleResponse listTargetsResponse =  proxyClient.injectCredentialsAndInvokeV2(
-                Translator.translateToListTargetsByRuleRequest(model),
-                proxyClient.client()::listTargetsByRule);
-
-        HashSet<String> targetIds = new HashSet<>();
-        for (software.amazon.awssdk.services.cloudwatchevents.model.Target target : listTargetsResponse.targets()) {
-            targetIds.add(target.id());
-        }
-
-        for (Target target : awsRequest.targets()) {
-            if (!targetIds.contains(target.id())) {
-                stabilized = false;
-                break;
-            }
-        }
-
-        logger.log(String.format("StackId: %s: %s [%s] update has stabilized: %s", stackId, "AWS::Events::Target", model.getTargets().size(), stabilized));
-
-        return stabilized;
-    }
-
-    /**
      * Determines whether PutRule has stabilized.
      * @param proxyClient The client used to read the resource
      * @param model The model used to generate a read request
@@ -211,9 +175,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
                 callbackContext.setPutTargetsResponse(awsResponse);
             }
 
-            stabilized =
-                    mitigateFailedPutTargets(putTargetsRequest, proxyClient, callbackContext, logger) &&
-                    isStabilizedPutTargets(putTargetsRequest, proxyClient, model, logger, stackId);
+            stabilized = mitigateFailedPutTargets(putTargetsRequest, proxyClient, callbackContext, logger);
 
             logger.log(String.format("StackId: %s: %s [%s] have been stabilized: %s", stackId, "AWS::Events::Target", model.getTargets().size(), stabilized));
         }
@@ -223,7 +185,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Determines whether RemoveTargets has stabilized.
-     * @param awsRequest The request to check for stabilization
      * @param awsResponse The response from the first call to RemoveTargets
      * @param proxyClient The client used to read the resource and retry if necessary
      * @param model The model used to generate a read request
@@ -233,7 +194,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @param targetIdsToDelete The list of target ids that were to be deleted
      * @return Whether the request has stabilized
      */
-    static boolean stabilizeRemoveTargets(RemoveTargetsRequest awsRequest, RemoveTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId, List<String> targetIdsToDelete) {
+    static boolean stabilizeRemoveTargets(RemoveTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId, List<String> targetIdsToDelete) {
 
         if (callbackContext.getRemoveTargetsResponse() == null) {
             callbackContext.setRemoveTargetsResponse(awsResponse);
@@ -340,6 +301,30 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         ListTargetsByRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::listTargetsByRule);
         logger.log(String.format("StackId: %s: %s [%s] successfully read.", stackId, "AWS::Events::Target", awsResponse.targets().size()));
         return awsResponse;
+    }
+
+    /**
+     * Returns a ProgressEvent with a delay that does not result in an infinite loop.
+     * @param progress The ProgressEvent object
+     * @param callbackDelaySeconds The length of the delay
+     * @param delayCount Which call to delayedProgress this is. For example: if this function is called twice in one
+     *                   handler, the delayCount of the first call will be 1, and the delayCount of the second call will
+     *                   be 2.
+     * @return A ProgressEvent with a 30 second delay on the first invocation, and a normal ProgressEvent on subsequent
+     * invocations.
+     */
+    static ProgressEvent<ResourceModel, CallbackContext> delayedProgress(ProgressEvent<ResourceModel, CallbackContext> progress, int callbackDelaySeconds, int delayCount) {
+        ProgressEvent<ResourceModel, CallbackContext> progressEvent;
+
+        if (progress.getCallbackContext().getCompletedPropagationDelays() < delayCount) {
+            progress.getCallbackContext().setCompletedPropagationDelays(delayCount);
+            progressEvent = ProgressEvent.defaultInProgressHandler(progress.getCallbackContext(), callbackDelaySeconds, progress.getResourceModel());
+        }
+        else {
+            progressEvent = ProgressEvent.progress(progress.getResourceModel(), progress.getCallbackContext());
+        }
+
+        return progressEvent;
     }
 
 
