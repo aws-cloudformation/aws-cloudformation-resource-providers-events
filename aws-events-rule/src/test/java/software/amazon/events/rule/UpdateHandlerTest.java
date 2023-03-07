@@ -1112,7 +1112,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         ProgressEvent<ResourceModel, CallbackContext> response;
 
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
-        
+
         // ASSERT
 
         assertThat(response).isNotNull();

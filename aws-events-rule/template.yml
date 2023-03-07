@@ -21,4 +21,3 @@ Resources:
       Handler: software.amazon.events.rule.HandlerWrapper::testEntrypoint
       Runtime: java8
       CodeUri: ./target/aws-events-rule-handler-1.0-SNAPSHOT.jar
-

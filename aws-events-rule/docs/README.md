@@ -140,4 +140,3 @@ For more information about using the `Fn::GetAtt` intrinsic function, see [Fn::G
 #### Arn
 
 The ARN of the rule, such as arn:aws:events:us-east-2:123456789012:rule/example.
-

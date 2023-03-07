@@ -83,7 +83,7 @@ public class ReadHandlerTest extends AbstractTestBase {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
-        
+
         // MODEL
 
         Set<Target> targets = new HashSet<>();
