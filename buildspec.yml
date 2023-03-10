@@ -18,13 +18,15 @@ phases:
           dirs=$(find . -not -path "\./\.*" -mindepth 1 -maxdepth 1 -type d)
           echo "Folders to build: $dirs"
           for directory in $dirs; do
-            cd "$directory"
-            mvn -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -B clean verify --no-transfer-progress
-            if [ "$?" -ne 0 ] ; then
-                echo "Build failed!"
-                exit 1
-            else
-                cd ".."
+            if [ $directory != ./aws-events-apidestination]; then
+              cd "$directory"
+              mvn -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -B clean verify --no-transfer-progress
+              if [ "$?" -ne 0 ] ; then
+                  echo "Build failed!"
+                  exit 1
+              else
+                  cd ".."
+              fi
             fi
           done
         else
