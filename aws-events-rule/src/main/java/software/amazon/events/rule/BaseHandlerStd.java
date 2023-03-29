@@ -7,15 +7,9 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.*;
 
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
-import software.amazon.cloudformation.exceptions.BaseHandlerException;
-import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
-import software.amazon.cloudformation.exceptions.CfnNotFoundException;
-import software.amazon.cloudformation.exceptions.CfnAlreadyExistsException;
-import software.amazon.cloudformation.exceptions.CfnInvalidRequestException;
-import software.amazon.cloudformation.exceptions.CfnInternalFailureException;
-import software.amazon.cloudformation.exceptions.CfnResourceConflictException;
-import software.amazon.cloudformation.exceptions.CfnServiceLimitExceededException;
+import software.amazon.cloudformation.exceptions.*;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
@@ -29,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Supplier;
 
 // Placeholder for the functionality that could be shared across Create/Read/Update/Delete/List Handlers
 
@@ -326,6 +321,22 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         }
 
         return progressEvent;
+    }
+
+    /**
+     * Filters out access denied errors. This is used to maintain backwards compatibility.
+     * Features like tagging were added after the initial implementation of AWS::KMS::Key,
+     * and existing permissions may deny the use of these newer features.
+     */
+    protected ProgressEvent<ResourceModel, CallbackContext> softFailAccessDenied(
+            final Supplier<ProgressEvent<ResourceModel, CallbackContext>> eventSupplier,
+            final ResourceModel model,
+            final CallbackContext callbackContext) {
+        try {
+            return eventSupplier.get();
+        } catch (final CfnAccessDeniedException e) {
+            return ProgressEvent.progress(model, callbackContext);
+        }
     }
 
 

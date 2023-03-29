@@ -35,7 +35,7 @@ public class ReadHandler extends BaseHandlerStd {
             )
 
             // STEP 2 [list targets]
-            .then(progress -> proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, request.getDesiredResourceState(), callbackContext)
+            .then(p -> softFailAccessDenied(() -> proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, request.getDesiredResourceState(), callbackContext)
                 .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
                 .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
                 .handleError(this::handleError)
@@ -45,7 +45,7 @@ public class ReadHandler extends BaseHandlerStd {
                         callbackContext.getResourceModelBuilder().targets(Translator.translateFromListTargetsByRuleResponse(awsResponse));
                     }
                     return ProgressEvent.defaultSuccessHandler(callbackContext.getResourceModelBuilder().build());
-                })
+                }), request.getDesiredResourceState(), callbackContext)
             );
     }
 
