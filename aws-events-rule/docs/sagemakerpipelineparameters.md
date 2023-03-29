@@ -28,3 +28,4 @@ _Required_: No
 _Type_: List of <a href="sagemakerpipelineparameter.md">SageMakerPipelineParameter</a>
 
 _Update requires_: [No interruption](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-update-behaviors.html#update-no-interrupt)
+

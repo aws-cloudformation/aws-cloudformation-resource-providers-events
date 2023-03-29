@@ -1,9 +1,7 @@
 package software.amazon.events.rule;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -68,23 +66,28 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .name("TestRule")
                 .build();
 
+        Set<Target> previousTargets = new HashSet<>();
+        previousTargets.add(software.amazon.events.rule.Target.builder()
+                .id("ToDeleteId")
+                .arn("ToDeleteArn")
+                .build());
+
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .state("ENABLED")
+                .targets(previousTargets)
+                .build();
+
         // MOCK
 
         /*
-        listTargetsByRule
+        describeRule
         removeTargets
         deleteRule
          */
 
-        Collection<software.amazon.awssdk.services.cloudwatchevents.model.Target> responseTargets = new ArrayList<>();
-        responseTargets.add(software.amazon.awssdk.services.cloudwatchevents.model.Target.builder()
-                .id("TargetId")
-                .arn("TargetArn")
-                .build());
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets)
-                .build();
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder().build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
                 .build();
@@ -92,9 +95,8 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final DeleteRuleResponse deleteRuleResponse = DeleteRuleResponse.builder()
                 .build();
 
-
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse);
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
@@ -106,9 +108,15 @@ public class DeleteHandlerTest extends AbstractTestBase {
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
             .desiredResourceState(model)
+            .previousResourceState(previousModel)
             .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 
@@ -131,21 +139,35 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .name("TestRule")
                 .build();
 
+        Set<Target> previousTargets = new HashSet<>();
+        previousTargets.add(software.amazon.events.rule.Target.builder()
+                .id("ToDeleteId")
+                .arn("ToDeleteArn")
+                .build());
+
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .state("ENABLED")
+                .targets(previousTargets)
+                .build();
+
         // MOCK
 
         /*
-        listTargetsByRule
+        describeRule
         removeTargets
         deleteRule
          */
 
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
                 .thenThrow(ResourceNotFoundException.class);
 
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);

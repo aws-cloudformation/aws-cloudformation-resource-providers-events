@@ -38,34 +38,37 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     public static final int MAX_RETRIES_ON_REMOVE_TARGETS = 5;
     protected Logger logger;
 
-  private final CloudWatchEventsClient cloudWatchEventsClient;
+    private final CloudWatchEventsClient cloudWatchEventsClient;
 
-  protected BaseHandlerStd() {
-    this(ClientBuilder.getClient());
-  }
+    protected BaseHandlerStd() {
+        this(ClientBuilder.getClient());
+    }
 
-  protected BaseHandlerStd(CloudWatchEventsClient cloudWatchEventsClient) {
-    this.cloudWatchEventsClient = requireNonNull(cloudWatchEventsClient);
-  }
+    protected BaseHandlerStd(CloudWatchEventsClient cloudWatchEventsClient) {
+        this.cloudWatchEventsClient = requireNonNull(cloudWatchEventsClient);
+    }
 
     /**
      * Checks for failed target puts and retries. Returns true iff a retry was not required and performed.
-     * @param awsRequest The request to be retried
-     * @param proxyClient The client to execute the request
+     *
+     * @param proxyClient     The client to execute the request
+     * @param model           The ResourceModel originally used
      * @param callbackContext The CallbackContext containing the number of retries attempted and the response from the last attempt
-     * @param logger The logger
+     * @param logger          The logger
      * @return Whether it is safe to move on to stabilization
      */
-    static boolean mitigateFailedPutTargets(PutTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, CallbackContext callbackContext, Logger logger) {
+    static boolean mitigateFailedPutTargets(ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger) {
         boolean hasFailedEntries = callbackContext.getPutTargetsResponse().hasFailedEntries() && callbackContext.getPutTargetsResponse().failedEntries().size() > 0;
 
         if (hasFailedEntries) {
             if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
                 logger.log(String.format("PutTargets has %s failed entries. Retrying...", callbackContext.getPutTargetsResponse().failedEntryCount()));
 
+                PutTargetsRequest originalPutTargetsRequest = Translator.translateToPutTargetsRequest(model);
+
                 // Build a new request from failed entries
                 HashMap<String, Target> targetMap = new HashMap<>();
-                for (Target target : awsRequest.targets()) {
+                for (Target target : originalPutTargetsRequest.targets()) {
                     targetMap.put(target.id(), target);
                 }
 
@@ -94,47 +97,50 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Checks for failed target removals and retries. Returns true iff a retry was not required and performed.
-     * @param proxyClient The client to execute the request
+     *
+     * @param proxyClient     The client to execute the request
+     * @param model           The ResourceModel originally used
      * @param callbackContext The CallbackContext containing the number of retries attempted and the response from the last attempt
-     * @param logger The logger
+     * @param logger          The logger
      * @return Whether it is safe to move on to stabilization
      */
     static boolean mitigateFailedRemoveTargets(ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger) {
-      boolean hasFailedEntries = callbackContext.getRemoveTargetsResponse().hasFailedEntries() && callbackContext.getRemoveTargetsResponse().failedEntries().size() > 0;
+        boolean hasFailedEntries = callbackContext.getRemoveTargetsResponse().hasFailedEntries() && callbackContext.getRemoveTargetsResponse().failedEntries().size() > 0;
 
-      if (hasFailedEntries) {
-          if (callbackContext.getRetryAttemptsForRemoveTargets() < MAX_RETRIES_ON_REMOVE_TARGETS) {
-              logger.log(String.format("RemoveTTargets has %s failed entries. Retrying...", callbackContext.getRemoveTargetsResponse().failedEntryCount()));
+        if (hasFailedEntries) {
+            if (callbackContext.getRetryAttemptsForRemoveTargets() < MAX_RETRIES_ON_REMOVE_TARGETS) {
+                logger.log(String.format("RemoveTTargets has %s failed entries. Retrying...", callbackContext.getRemoveTargetsResponse().failedEntryCount()));
 
-              // Build a new request from failed entries
-              ArrayList<String> failedEntryIds = new ArrayList<>();
-              for (RemoveTargetsResultEntry failedEntry : callbackContext.getRemoveTargetsResponse().failedEntries()) {
-                  failedEntryIds.add(failedEntry.targetId());
-                  logger.log(failedEntry.errorMessage());
-              }
+                // Build a new request from failed entries
+                ArrayList<String> failedEntryIds = new ArrayList<>();
+                for (RemoveTargetsResultEntry failedEntry : callbackContext.getRemoveTargetsResponse().failedEntries()) {
+                    failedEntryIds.add(failedEntry.targetId());
+                    logger.log(failedEntry.errorMessage());
+                }
 
-              RemoveTargetsRequest removeTargetsRequest = Translator.translateToRemoveTargetsRequest(model, failedEntryIds);
+                RemoveTargetsRequest removeTargetsRequest = Translator.translateToRemoveTargetsRequest(model, failedEntryIds);
 
-              // Retry request
-              callbackContext.setRetryAttemptsForRemoveTargets(callbackContext.getRetryAttemptsForRemoveTargets() + 1);
-              callbackContext.setRemoveTargetsResponse(proxyClient.injectCredentialsAndInvokeV2(removeTargetsRequest, proxyClient.client()::removeTargets));
-          } else {
-              logger.log("Failed to remove Targets.");
-              throw AwsServiceException.builder()
-                      .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries (remove)").build())
-                      .build();
-          }
-      }
+                // Retry request
+                callbackContext.setRetryAttemptsForRemoveTargets(callbackContext.getRetryAttemptsForRemoveTargets() + 1);
+                callbackContext.setRemoveTargetsResponse(proxyClient.injectCredentialsAndInvokeV2(removeTargetsRequest, proxyClient.client()::removeTargets));
+            } else {
+                logger.log("Failed to remove Targets.");
+                throw AwsServiceException.builder()
+                        .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries (remove)").build())
+                        .build();
+            }
+        }
 
-      return !hasFailedEntries;
-  }
+        return !hasFailedEntries;
+    }
 
     /**
      * Determines whether PutRule has stabilized.
+     *
      * @param proxyClient The client used to read the resource
-     * @param model The model used to generate a read request
-     * @param logger The logger
-     * @param stackId The stack id (sued for logging
+     * @param model       The model used to generate a read request
+     * @param logger      The logger
+     * @param stackId     The stack id (sued for logging
      * @return Whether the request has stabilized
      */
     static boolean stabilizePutRule(ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, Logger logger, String stackId) {
@@ -146,8 +152,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
                     proxyClient.client()::describeRule);
 
             stabilized = true;
-        }
-        catch (ResourceNotFoundException e) {
+        } catch (ResourceNotFoundException e) {
             stabilized = false;
         }
 
@@ -157,63 +162,58 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Determines whether PutTargets has stabilized.
-     * @param awsResponse The response from the first call to PutTargets
-     * @param proxyClient The client used to read the resource and retry if necessary
-     * @param model The model used to generate a read request
+     *
+     * @param awsResponse     The response from the first call to PutTargets
+     * @param proxyClient     The client used to read the resource and retry if necessary
+     * @param model           The model used to generate a read request
      * @param callbackContext The CallbackContext containing the number of retries attempted and the response from the last attempt
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
+     * @param logger          The logger
+     * @param stackId         The stack id (used for logging)
      * @return Whether the request has stabilized
      */
     static boolean stabilizePutTargets(PutTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId) {
-        boolean stabilized = true;
 
-        if (model.getTargets() != null) {
-            PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model);
-
-            if (callbackContext.getPutTargetsResponse() == null) {
-                callbackContext.setPutTargetsResponse(awsResponse);
-            }
-
-            stabilized = mitigateFailedPutTargets(putTargetsRequest, proxyClient, callbackContext, logger);
-
-            logger.log(String.format("StackId: %s: %s [%s] have been stabilized: %s", stackId, "AWS::Events::Target", model.getTargets().size(), stabilized));
+        if (callbackContext.getPutTargetsResponse() == null) {
+            callbackContext.setPutTargetsResponse(awsResponse);
         }
 
+        boolean stabilized = mitigateFailedPutTargets(proxyClient, model, callbackContext, logger);
+
+        logger.log(String.format("StackId: %s: %s [%s] have been stabilized: %s", stackId, "AWS::Events::Target", model.getTargets().size(), stabilized));
         return stabilized;
     }
 
     /**
      * Determines whether RemoveTargets has stabilized.
-     * @param awsResponse The response from the first call to RemoveTargets
-     * @param proxyClient The client used to read the resource and retry if necessary
-     * @param model The model used to generate a read request
-     * @param callbackContext The CallbackContext containing the number of retries attempted and the response from the last attempt
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
-     * @param targetIdsToDelete The list of target ids that were to be deleted
+     *
+     * @param awsResponse       The response from the first call to RemoveTargets
+     * @param proxyClient       The client used to read the resource and retry if necessary
+     * @param model             The model used to generate a read request
+     * @param callbackContext   The CallbackContext containing the number of retries attempted and the response from the last attempt
+     * @param logger            The logger
+     * @param stackId           The stack id (used for logging)
      * @return Whether the request has stabilized
      */
-    static boolean stabilizeRemoveTargets(RemoveTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId, List<String> targetIdsToDelete) {
+    static boolean stabilizeRemoveTargets(RemoveTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId) {
 
         if (callbackContext.getRemoveTargetsResponse() == null) {
             callbackContext.setRemoveTargetsResponse(awsResponse);
         }
 
-        boolean stabilized = targetIdsToDelete.size() == 0 ||
-                mitigateFailedRemoveTargets(proxyClient, model, callbackContext, logger);
+        boolean stabilized = mitigateFailedRemoveTargets(proxyClient, model, callbackContext, logger);
 
-        logger.log(String.format("StackId: %s: %s [%s] delete has stabilized: %s", stackId, "AWS::Events::Target", targetIdsToDelete, stabilized));
+        logger.log(String.format("StackId: %s: %s delete has stabilized: %s", stackId, "AWS::Events::Target", stabilized));
         return stabilized;
     }
 
 
     /**
      * Calls PutRule and returns the result.
-     * @param awsRequest The PutRuleRequest
+     *
+     * @param awsRequest  The PutRuleRequest
      * @param proxyClient The client used to make the request
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
+     * @param logger      The logger
+     * @param stackId     The stack id (used for logging)
      * @return The PutRuleResponse
      */
     static PutRuleResponse putRule(PutRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
@@ -224,10 +224,11 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Calls DeleteRule and returns the result.
-     * @param awsRequest The DeleteRuleRequest
+     *
+     * @param awsRequest  The DeleteRuleRequest
      * @param proxyClient The client used to make the request
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
+     * @param logger      The logger
+     * @param stackId     The stack id (used for logging)
      * @return The DeleteRuleResponse
      */
     static DeleteRuleResponse deleteRule(DeleteRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
@@ -238,10 +239,11 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Calls DescribeRule and returns the result.
-     * @param awsRequest The DescribeRuleRequest
+     *
+     * @param awsRequest  The DescribeRuleRequest
      * @param proxyClient The client used to make the request
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
+     * @param logger      The logger
+     * @param stackId     The stack id (used for logging)
      * @return The DescribeRuleResponse
      */
     static DescribeRuleResponse describeRule(DescribeRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
@@ -252,10 +254,11 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Calls PutTargets and returns the result.
-     * @param awsRequest The PutTargetsRequest
+     *
+     * @param awsRequest  The PutTargetsRequest
      * @param proxyClient The client used to make the request
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
+     * @param logger      The logger
+     * @param stackId     The stack id (used for logging)
      * @return The PutTargetsResponse
      */
     static PutTargetsResponse putTargets(PutTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
@@ -271,21 +274,19 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Calls RemoveTargets and returns the result.
-     * @param awsRequest The RemoveTargetsRequest
+     *
+     * @param awsRequest  The RemoveTargetsRequest
      * @param proxyClient The client used to make the request
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
+     * @param logger      The logger
+     * @param stackId     The stack id (used for logging)
      * @return The RemoveTargetsResponse
      */
-    static RemoveTargetsResponse removeTargets(RemoveTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId, List<String> targetIdsToDelete) {
-        RemoveTargetsResponse awsResponse = null;
+    static RemoveTargetsResponse removeTargets(RemoveTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
 
         // Delete targets that should not exist after update
-        if (targetIdsToDelete.size() > 0) {
-            awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::removeTargets);
-        }
+        RemoveTargetsResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::removeTargets);
 
-        logger.log(String.format("StackId: %s: %s [%s] has successfully been deleted.", stackId, "AWS::Events::Target", targetIdsToDelete));
+        logger.log(String.format("StackId: %s: %s [%s] has successfully been deleted.", stackId, "AWS::Events::Target", awsRequest.ids()));
         return awsResponse;
     }
 
@@ -305,11 +306,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Returns a ProgressEvent with a delay that does not result in an infinite loop.
-     * @param progress The ProgressEvent object
+     *
+     * @param progress             The ProgressEvent object
      * @param callbackDelaySeconds The length of the delay
-     * @param delayCount Which call to delayedProgress this is. For example: if this function is called twice in one
-     *                   handler, the delayCount of the first call will be 1, and the delayCount of the second call will
-     *                   be 2.
+     * @param delayCount           Which call to delayedProgress this is. For example: if this function is called twice in one
+     *                             handler, the delayCount of the first call will be 1, and the delayCount of the second call will
+     *                             be 2.
      * @return A ProgressEvent with a 30 second delay on the first invocation, and a normal ProgressEvent on subsequent
      * invocations.
      */
@@ -319,8 +321,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         if (progress.getCallbackContext().getCompletedPropagationDelays() < delayCount) {
             progress.getCallbackContext().setCompletedPropagationDelays(delayCount);
             progressEvent = ProgressEvent.defaultInProgressHandler(progress.getCallbackContext(), callbackDelaySeconds, progress.getResourceModel());
-        }
-        else {
+        } else {
             progressEvent = ProgressEvent.progress(progress.getResourceModel(), progress.getCallbackContext());
         }
 
@@ -329,70 +330,72 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
 
     private CloudWatchEventsClient getCloudWatchEventsClient() {
-    return cloudWatchEventsClient;
-  }
-
-  @Override
-  public final ProgressEvent<ResourceModel, CallbackContext> handleRequest(
-    final AmazonWebServicesClientProxy proxy,
-    final ResourceHandlerRequest<ResourceModel> request,
-    final CallbackContext callbackContext,
-    final Logger logger) {
-    return handleRequest(
-      proxy,
-      request,
-      callbackContext != null ? callbackContext : new CallbackContext(),
-      proxy.newProxy(this::getCloudWatchEventsClient),
-      logger
-    );
-  }
-
-  protected abstract ProgressEvent<ResourceModel, CallbackContext> handleRequest(
-    final AmazonWebServicesClientProxy proxy,
-    final ResourceHandlerRequest<ResourceModel> request,
-    final CallbackContext callbackContext,
-    final ProxyClient<CloudWatchEventsClient> proxyClient,
-    final Logger logger);
-
-  public ProgressEvent<ResourceModel, CallbackContext> handleError(final CloudWatchEventsRequest request, final Exception e, final ProxyClient<CloudWatchEventsClient> proxyClient, final ResourceModel resourceModel, final CallbackContext callbackContext) {
-    logger.log(String.format("handleError for: %s", e));
-
-    if (e.getStackTrace() != null) {
-      StringWriter sw = new StringWriter();
-      e.printStackTrace(new PrintWriter(sw));
-      logger.log(sw.toString());
+        return cloudWatchEventsClient;
     }
 
-    BaseHandlerException ex;
-    if (e instanceof ConcurrentModificationException) {
-      ex = new CfnResourceConflictException(e);
-    } else if (e instanceof LimitExceededException) {
-      ex = new CfnServiceLimitExceededException(e);
-    } else if (e instanceof InvalidEventPatternException) {
-      ex = new CfnInvalidRequestException(e);
-    } else if (e instanceof InternalException) {
-      ex = new CfnInternalFailureException(e);
-    } else if (e instanceof ResourceNotFoundException) {
-      // READ with an invalid or missing RestApiId or AuthorizerId throws NotFoundException
-      ex = new CfnNotFoundException(e);
-    } else if (e instanceof CfnAlreadyExistsException) {
-      // if you do a CREATE with an existing name, you get BadRequestException
-      return ProgressEvent.defaultFailureHandler(e, HandlerErrorCode.AlreadyExists);
-    } else if (e instanceof AwsServiceException) {
-      if (((AwsServiceException) e).awsErrorDetails().equals("")) { // Do not touch. IDK man...
-        ex = new CfnInternalFailureException(e);
-      } if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (put)")) {
-        ex = new CfnInternalFailureException(e);
-        return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to create/update");
-      } if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (remove)")) {
-        ex = new CfnInternalFailureException(e);
-        return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to be removed");
-      } else {
-        ex = new CfnGeneralServiceException(e);
-      }
-    } else { // InternalException
-      ex = new CfnGeneralServiceException(e);
+    @Override
+    public final ProgressEvent<ResourceModel, CallbackContext> handleRequest(
+            final AmazonWebServicesClientProxy proxy,
+            final ResourceHandlerRequest<ResourceModel> request,
+            final CallbackContext callbackContext,
+            final Logger logger) {
+        return handleRequest(
+                proxy,
+                request,
+                callbackContext != null ? callbackContext : new CallbackContext(),
+                proxy.newProxy(this::getCloudWatchEventsClient),
+                logger
+        );
     }
-    return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), ex.getMessage());
-  }
+
+    protected abstract ProgressEvent<ResourceModel, CallbackContext> handleRequest(
+            final AmazonWebServicesClientProxy proxy,
+            final ResourceHandlerRequest<ResourceModel> request,
+            final CallbackContext callbackContext,
+            final ProxyClient<CloudWatchEventsClient> proxyClient,
+            final Logger logger);
+
+    public ProgressEvent<ResourceModel, CallbackContext> handleError(final CloudWatchEventsRequest request, final Exception e, final ProxyClient<CloudWatchEventsClient> proxyClient, final ResourceModel resourceModel, final CallbackContext callbackContext) {
+        logger.log(String.format("handleError for: %s", e));
+
+        if (e.getStackTrace() != null) {
+            StringWriter sw = new StringWriter();
+            e.printStackTrace(new PrintWriter(sw));
+            logger.log(sw.toString());
+        }
+
+        BaseHandlerException ex;
+        if (e instanceof ConcurrentModificationException) {
+            ex = new CfnResourceConflictException(e);
+        } else if (e instanceof LimitExceededException) {
+            ex = new CfnServiceLimitExceededException(e);
+        } else if (e instanceof InvalidEventPatternException) {
+            ex = new CfnInvalidRequestException(e);
+        } else if (e instanceof InternalException) {
+            ex = new CfnInternalFailureException(e);
+        } else if (e instanceof ResourceNotFoundException) {
+            // READ with an invalid or missing RestApiId or AuthorizerId throws NotFoundException
+            ex = new CfnNotFoundException(e);
+        } else if (e instanceof CfnAlreadyExistsException) {
+            // if you do a CREATE with an existing name, you get BadRequestException
+            return ProgressEvent.defaultFailureHandler(e, HandlerErrorCode.AlreadyExists);
+        } else if (e instanceof AwsServiceException) {
+            if (((AwsServiceException) e).awsErrorDetails().equals("")) { // Do not touch. IDK man...
+                ex = new CfnInternalFailureException(e);
+            }
+            if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (put)")) {
+                ex = new CfnInternalFailureException(e);
+                return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to create/update");
+            }
+            if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (remove)")) {
+                ex = new CfnInternalFailureException(e);
+                return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to be removed");
+            } else {
+                ex = new CfnGeneralServiceException(e);
+            }
+        } else { // InternalException
+            ex = new CfnGeneralServiceException(e);
+        }
+        return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), ex.getMessage());
+    }
 }

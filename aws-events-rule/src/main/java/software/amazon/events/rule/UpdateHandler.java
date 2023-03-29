@@ -1,5 +1,6 @@
 package software.amazon.events.rule;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.collections4.CollectionUtils;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
@@ -22,9 +23,31 @@ public class UpdateHandler extends BaseHandlerStd {
 
         this.logger = logger;
 
+        // Create lists of ids
+        ArrayList<String> existingTargetIds = new ArrayList<>();
+        ArrayList<String> modelTargetIds = new ArrayList<>();
+        ArrayList<String> targetIdsToDelete = new ArrayList<>();
+
+        // Build the list of Targets ids that already exist
+        if (request.getPreviousResourceState().getTargets() != null) {
+            for (software.amazon.events.rule.Target target : request.getPreviousResourceState().getTargets()) {
+                existingTargetIds.add(target.getId());
+            }
+        }
+
+        // Build the list of Targets ids that should exist after update
+        if (request.getDesiredResourceState().getTargets() != null) {
+            for (software.amazon.events.rule.Target target : request.getDesiredResourceState().getTargets()) {
+                modelTargetIds.add(target.getId());
+            }
+        }
+
+        // Subtract model target ids from existing target ids to get the list of Targets to delete
+        targetIdsToDelete.addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
+
         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
 
-            // STEP 1 [check if resource already exists]
+            // STEP 1 [check if resource exists]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
@@ -46,53 +69,18 @@ public class UpdateHandler extends BaseHandlerStd {
                     .progress()
             )
 
-            // STEP 3 [get list of existing targets]
-            .then(progress ->
-                proxy.initiate("AWS-Events-Rule::Update::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
-                    .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
-                    .handleError(this::handleError)
-                    .done(awsResponse -> {
-                        // Record the list of targets to be deleted.
-
-                        // Create lists of ids
-                        ArrayList<String> existingTargetIds = new ArrayList<>();
-                        ArrayList<String> modelTargetIds = new ArrayList<>();
-
-                        // Build the list of Targets ids that already exist
-                        if (awsResponse.hasTargets()) {
-                            for (Target target : awsResponse.targets()) {
-                                existingTargetIds.add(target.id());
-                            }
-                        }
-
-                        // Build the list of Targets ids that should exist after update
-                        if (progress.getResourceModel().getTargets() != null) {
-                            for (Target target : Translator.translateToPutTargetsRequest(progress.getResourceModel()).targets()) {
-                                modelTargetIds.add(target.id());
-                            }
-                        }
-
-                        // Subtract model target ids from existing target ids to get the list of Targets to delete
-                        callbackContext.setTargetIdsToDelete(new ArrayList<>());
-                        callbackContext.getTargetIdsToDelete().addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
-
-                        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
-                    })
-            )
-
-            // STEP 4 [delete extra targets]
-            .then(progress -> callbackContext.getTargetIdsToDelete() == null || callbackContext.getTargetIdsToDelete().size() == 0 ?
+            // STEP 3 [delete extra targets]
+            .then(progress -> targetIdsToDelete.size() == 0 ?
                         progress :
                         proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, callbackContext.getTargetIdsToDelete()))
-                    .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, model, callbackContext, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
+                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, targetIdsToDelete))
+                    .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> delayedProgress(progress, 30, 1))
             )
 
-            // STEP 5 [put targets]
+            // STEP 4 [put targets]
             .then(progress -> progress.getResourceModel().getTargets() == null || progress.getResourceModel().getTargets().size() == 0 ?
                         progress :
                         proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())

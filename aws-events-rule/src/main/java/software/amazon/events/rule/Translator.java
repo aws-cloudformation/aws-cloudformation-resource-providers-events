@@ -256,15 +256,13 @@ public class Translator {
   /**
    * Generates a RemoveTargetsRequest based on a ResourceModel and a ListTargetsByRuleResponse.
    * @param model A ResourceModel with data on the Rule with targets that are to be removed
-   * @param listTargetsByRuleResponse A ListTargetsByRuleResponse containing the Targets to be removed
    * @return A RemoveTargetsRequest
    */
-  static RemoveTargetsRequest translateToRemoveTargetsRequest(final ResourceModel model, ListTargetsByRuleResponse listTargetsByRuleResponse) {
+  static RemoveTargetsRequest translateToRemoveTargetsRequest(final ResourceModel model) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
-
     ArrayList<String> targetIds = new ArrayList<>();
-    for (Target target : listTargetsByRuleResponse.targets()) {
-      targetIds.add(target.id());
+    for (software.amazon.events.rule.Target target : model.getTargets()) {
+      targetIds.add(target.getId());
     }
 
     return translateToRemoveTargetsRequest(model, targetIds);

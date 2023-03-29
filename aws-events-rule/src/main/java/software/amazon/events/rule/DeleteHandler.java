@@ -18,30 +18,31 @@ public class DeleteHandler extends BaseHandlerStd {
 
         this.logger = logger;
 
+        final ResourceModel previousModel = request.getPreviousResourceState();
+
         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
 
-            // STEP 1 [list targets]
+            // STEP 1 [check if resource exists]
             .then(progress ->
-                proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToListTargetsByRuleRequest)
-                    .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
+                proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
+                    .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> {
-                        // Record the list of Targets
-                        callbackContext.setListTargetsByRuleResponse(awsResponse);
+                        progress.getResourceModel().setArn(awsResponse.arn());
                         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
                     })
             )
 
             // STEP 2 [delete targets]
-            .then(progress -> !callbackContext.getListTargetsByRuleResponse().hasTargets() || callbackContext.getListTargetsByRuleResponse().targets().isEmpty() ?
+            .then(progress -> previousModel.getTargets() == null || previousModel.getTargets().size() == 0 ?
                         progress :
                         proxy.initiate("AWS-Events-Rule::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, callbackContext.getListTargetsByRuleResponse()))
-                    .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId(), awsRequest.ids()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, model, callbackContext, logger, request.getStackId(), awsRequest.ids()))
+                    .translateToServiceRequest(unused -> Translator.translateToRemoveTargetsRequest(previousModel))
+                    .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress() // TODO 30
+                    .done(awsResponse -> delayedProgress(progress, 30, 1))
             )
 
             // STEP 3 [delete rule]
@@ -50,7 +51,7 @@ public class DeleteHandler extends BaseHandlerStd {
                     .translateToServiceRequest(Translator::translateToDeleteRuleRequest)
                     .makeServiceCall((awsRequest, client) -> deleteRule(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
-                    .progress() // TODO 30
+                    .done(awsResponse -> delayedProgress(progress, 30, 1))
             )
 
             // STEP 4 [return the successful progress event without resource model]

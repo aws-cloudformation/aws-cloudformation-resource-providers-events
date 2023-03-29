@@ -15,11 +15,9 @@ public class CallbackContext extends StdCallbackContext {
 
     private int retryAttemptsForPutTargets;
     private int retryAttemptsForRemoveTargets;
-    private ListTargetsByRuleResponse listTargetsByRuleResponse;
     private PutTargetsResponse putTargetsResponse;
     private RemoveTargetsResponse removeTargetsResponse;
     private boolean ruleExists;
-    private ArrayList<String> targetIdsToDelete;
     private ResourceModel.ResourceModelBuilder resourceModelBuilder;
     private int completedPropagationDelays;
 }
