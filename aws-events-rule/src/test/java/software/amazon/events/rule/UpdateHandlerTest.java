@@ -107,8 +107,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         }
 
         // MODEL
-
-
         Set<software.amazon.events.rule.Target> targets = new HashSet<>();
 
         targets.add(software.amazon.events.rule.Target.builder()
@@ -121,7 +119,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -160,10 +158,11 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
@@ -205,6 +204,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+            .awsAccountId(SOURCE_ACCOUNT_ID)
             .desiredResourceState(model)
             .build();
 
@@ -259,7 +259,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // MODEL
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -280,10 +280,11 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
@@ -313,6 +314,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
@@ -367,7 +369,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -394,10 +396,11 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
@@ -430,6 +433,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
@@ -488,7 +492,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -523,10 +527,11 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
@@ -557,6 +562,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
@@ -764,10 +770,11 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
@@ -804,6 +811,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
@@ -926,7 +934,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -965,10 +973,11 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
@@ -1005,6 +1014,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
@@ -1070,7 +1080,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -1094,6 +1104,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
@@ -1105,6 +1116,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
@@ -1132,8 +1144,9 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .name("NAME")
                 .build();
+        CompositePID compositePID = new CompositePID(model, SOURCE_ACCOUNT_ID);
 
-        PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model);
+        PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model, compositePID);
 
         return putTargetsRequest.targets().get(0);
     }

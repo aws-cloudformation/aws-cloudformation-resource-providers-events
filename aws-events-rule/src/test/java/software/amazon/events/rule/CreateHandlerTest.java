@@ -3,30 +3,33 @@ package software.amazon.events.rule;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.params.provider.ValueSource;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.*;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
-import software.amazon.cloudformation.exceptions.CfnAlreadyExistsException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.events.rule.ResourceModel.ResourceModelBuilder;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -65,8 +68,9 @@ public class CreateHandlerTest extends AbstractTestBase {
         verifyNoMoreInteractions(sdkClient);
     }
 
-    @Test
-    public void handleRequest_SimpleSuccess() {
+    @ParameterizedTest
+    @ValueSource(strings = {EVENT_RULE_ARN_DEFAULT_BUS, EVENT_RULE_ARN_CUSTOM_BUS, CROSS_ACCOUNT_EVENT_RULE_ARN_CUSTOM_BUS})
+    public void handleRequest_SimpleSuccess(final String arn) {
         final CreateHandler handler = new CreateHandler();
 
         String eventPatternString = String.join("",
@@ -88,13 +92,13 @@ public class CreateHandlerTest extends AbstractTestBase {
 
         Map<String, Object> eventMapperMap = null;
         try {
-            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>() {
+            });
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
 
         // MODEL
-
         Set<software.amazon.events.rule.Target> targets = new HashSet<>();
 
         targets.add(software.amazon.events.rule.Target.builder()
@@ -102,21 +106,22 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId")
                 .build());
 
+        // Final Models
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
-                .description("TestDescription")
-                .eventPattern(eventMapperMap)
-                .state("ENABLED")
-                .targets(targets)
-                .build();
+            .name(EVENT_RULE_NAME)
+            .description("TestDescription")
+            .eventPattern(eventMapperMap)
+            .state("ENABLED")
+            .targets(targets)
+            .build();
+
 
         // MOCK
-
         /*
-        describeRule
-        putRule
-        describeRule
-        putTargets
+         * describeRule
+         * putRule
+         * describeRule
+         * putTargets
          */
 
         Collection<Target> responseTargets = new ArrayList<>();
@@ -132,11 +137,11 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
-                .arn("arn")
+                .arn(arn)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(arn)
                 .build();
 
         final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
@@ -154,11 +159,14 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .thenReturn(putTargetsResponse);
 
         // RUN
-
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
-            .desiredResourceState(model)
-            .build();
-        request.getDesiredResourceState().setArn("arn");
+                .awsAccountId(SOURCE_ACCOUNT_ID)
+                .stackId(MOCK_STACK_ID)
+                .clientRequestToken(MOCK_CLIENT_TOKEN)
+                .logicalResourceIdentifier(MOCK_LOGICAL_ID)
+                .desiredResourceState(model)
+                .build();
+        request.getDesiredResourceState().setArn(arn);
 
         CallbackContext context = new CallbackContext();
         ProgressEvent<ResourceModel, CallbackContext> response;
@@ -170,7 +178,6 @@ public class CreateHandlerTest extends AbstractTestBase {
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
-
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
@@ -194,7 +201,7 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .scheduleExpression("rate(1 day)")
                 .state("ENABLED")
@@ -204,10 +211,10 @@ public class CreateHandlerTest extends AbstractTestBase {
         // MOCK
 
         /*
-        describeRule
-        putRule
-        describeRule
-        putTargets
+         * describeRule
+         * putRule
+         * describeRule
+         * putTargets
          */
 
         Collection<Target> responseTargets = new ArrayList<>();
@@ -223,11 +230,11 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .scheduleExpression(model.getScheduleExpression())
                 .state(model.getState())
-                .arn("arn")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
@@ -245,11 +252,11 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .thenReturn(putTargetsResponse);
 
         // RUN
-
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
-        request.getDesiredResourceState().setArn("arn");
+        request.getDesiredResourceState().setArn(EVENT_RULE_ARN_DEFAULT_BUS);
 
         CallbackContext context = new CallbackContext();
         ProgressEvent<ResourceModel, CallbackContext> response;
@@ -261,7 +268,6 @@ public class CreateHandlerTest extends AbstractTestBase {
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
-
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
@@ -294,7 +300,8 @@ public class CreateHandlerTest extends AbstractTestBase {
 
         Map<String, Object> eventMapperMap = null;
         try {
-            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>() {
+            });
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -309,7 +316,7 @@ public class CreateHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -319,11 +326,11 @@ public class CreateHandlerTest extends AbstractTestBase {
         // MOCK
 
         /*
-        describeRule
-        putRule
-        describeRule
-        putTargets
-        listTargetsByRule
+         * describeRule
+         * putRule
+         * describeRule
+         * putTargets
+         * listTargetsByRule
          */
 
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
@@ -339,20 +346,20 @@ public class CreateHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request,
+                new CallbackContext(), proxyClient, logger);
 
         // ASSERT
-
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
         assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
         assertThat(response.getResourceModels()).isNull();
-        assertThat(response.getMessage()).isEqualTo("TestRule already exists");
+        assertThat(response.getMessage()).isEqualTo(EVENT_RULE_NAME + " already exists");
         assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.AlreadyExists);
     }
-
 }
