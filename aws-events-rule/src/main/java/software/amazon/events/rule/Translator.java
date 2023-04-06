@@ -70,6 +70,7 @@ public class Translator {
     return putRuleRequestBuilder
             .name(compositePID.getEventRuleName())
             .eventBusName(compositePID.getEventBusName())
+
             .description(model.getDescription())
             .eventPattern(eventPattern)
             .roleArn(model.getRoleArn())

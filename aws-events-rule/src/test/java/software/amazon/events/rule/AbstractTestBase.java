@@ -39,7 +39,6 @@ public class AbstractTestBase {
   protected static final String MOCK_CUSTOM_EVENT_BUS_NAME = "CustomEventBus";
   protected static final String MOCK_CROSS_ACCOUNT_EVENT_BUS_ARN = "arn:aws:events:us-east-1:123456789013:event-bus/custom.event.bus.crossaccount";
 
-
   protected static final Credentials MOCK_CREDENTIALS;
   protected static final LoggerProxy logger;
 
