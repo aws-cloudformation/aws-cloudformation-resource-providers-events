@@ -500,7 +500,7 @@ public class ReadHandlerTest extends AbstractTestBase {
     /**
      * A hacky way to avoid rewriting logic to convert ResourceModel Targets to
      * AwsSdk Targets
-     * 
+     *
      * @param target A ResourceModel Target
      * @return An AwsSdk Targetreq
      */
