@@ -264,6 +264,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .description(model.getDescription())
                 .eventPattern(eventPatternString)
                 .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
@@ -929,7 +930,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .build();
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
-                .ruleArn("arn")
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()

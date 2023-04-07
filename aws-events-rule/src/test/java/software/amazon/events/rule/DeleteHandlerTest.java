@@ -63,7 +63,6 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final DeleteHandler handler = new DeleteHandler();
 
         // MODEL
-
         final ResourceModel model = ResourceModel.builder()
                 .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
@@ -82,7 +81,6 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .build();
 
         // MOCK
-
         /*
         describeRule
         removeTargets

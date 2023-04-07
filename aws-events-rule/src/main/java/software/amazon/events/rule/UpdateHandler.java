@@ -20,6 +20,8 @@ public class UpdateHandler extends BaseHandlerStd {
         final Logger logger) {
 
         this.logger = logger;
+        final ResourceModel resourceModel = request.getDesiredResourceState();
+        final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
 
         final ResourceModel resourceModel = request.getDesiredResourceState();
         final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
