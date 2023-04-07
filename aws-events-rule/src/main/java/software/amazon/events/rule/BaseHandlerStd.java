@@ -51,7 +51,6 @@ import java.util.function.Supplier;
 
 // Placeholder for the functionality that could be shared across Create/Read/Update/Delete/List Handlers
 
-
 public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     public static final int MAX_RETRIES_ON_PUT_TARGETS = 5;
     public static final int MAX_RETRIES_ON_REMOVE_TARGETS = 5;
@@ -81,7 +80,8 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
         if (hasFailedEntries) {
             if (callbackContext.getRetryAttemptsForPutTargets() < MAX_RETRIES_ON_PUT_TARGETS) {
-                logger.log(String.format("PutTargets has %s failed entries. Retrying...", callbackContext.getPutTargetsResponse().failedEntryCount()));
+                logger.log(String.format("PutTargets has %s failed entries. Retrying...",
+                        callbackContext.getPutTargetsResponse().failedEntryCount()));
 
                 PutTargetsRequest originalPutTargetsRequest = Translator.translateToPutTargetsRequest(model, compositePID);
 
@@ -103,7 +103,8 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
                 // Retry request
                 callbackContext.setRetryAttemptsForPutTargets(callbackContext.getRetryAttemptsForPutTargets() + 1);
-                callbackContext.setPutTargetsResponse(proxyClient.injectCredentialsAndInvokeV2(putTargetsRequest, proxyClient.client()::putTargets));
+                callbackContext.setPutTargetsResponse(
+                        proxyClient.injectCredentialsAndInvokeV2(putTargetsRequest, proxyClient.client()::putTargets));
             } else {
                 throw AwsServiceException.builder()
                         .awsErrorDetails(AwsErrorDetails.builder().errorCode("FailedEntries (put)").build())
@@ -239,7 +240,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         return stabilized;
     }
 
-
     /**
      * Calls PutRule and returns the result.
      *
@@ -249,9 +249,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @param stackId     The stack id (used for logging)
      * @return The PutRuleResponse
      */
-    static PutRuleResponse putRule(PutRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
-        PutRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putRule);
-        logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", stackId, ResourceModel.TYPE_NAME, awsRequest.name()));
+    static PutRuleResponse putRule(PutRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient,
+            Logger logger, String stackId) {
+        PutRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest,
+                proxyClient.client()::putRule);
+        logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", stackId,
+                ResourceModel.TYPE_NAME, awsRequest.name()));
         return awsResponse;
     }
 
@@ -264,9 +267,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @param stackId     The stack id (used for logging)
      * @return The DeleteRuleResponse
      */
-    static DeleteRuleResponse deleteRule(DeleteRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
-        DeleteRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::deleteRule);
-        logger.log(String.format("StackId: %s: %s [%s] successfully deleted.", stackId, ResourceModel.TYPE_NAME, awsRequest.name()));
+    static DeleteRuleResponse deleteRule(DeleteRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient,
+            Logger logger, String stackId) {
+        DeleteRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest,
+                proxyClient.client()::deleteRule);
+        logger.log(String.format("StackId: %s: %s [%s] successfully deleted.", stackId, ResourceModel.TYPE_NAME,
+                awsRequest.name()));
         return awsResponse;
     }
 
@@ -279,9 +285,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @param stackId     The stack id (used for logging)
      * @return The DescribeRuleResponse
      */
-    static DescribeRuleResponse describeRule(DescribeRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
-        DescribeRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeRule);
-        logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", stackId, ResourceModel.TYPE_NAME, awsRequest.name()));
+    static DescribeRuleResponse describeRule(DescribeRuleRequest awsRequest,
+            ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
+        DescribeRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest,
+                proxyClient.client()::describeRule);
+        logger.log(String.format("StackId: %s: %s [%s] has successfully been read.", stackId, ResourceModel.TYPE_NAME,
+                awsRequest.name()));
         return awsResponse;
     }
 
@@ -294,12 +303,14 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @param stackId     The stack id (used for logging)
      * @return The PutTargetsResponse
      */
-    static PutTargetsResponse putTargets(PutTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
+    static PutTargetsResponse putTargets(PutTargetsRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient,
+            Logger logger, String stackId) {
         PutTargetsResponse awsResponse = null;
 
         if (awsRequest != null) {
             awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::putTargets);
-            logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", stackId, "AWS::Events::Target", (awsRequest).targets().size()));
+            logger.log(String.format("StackId: %s: %s [%s] has successfully been updated.", stackId,
+                    "AWS::Events::Target", (awsRequest).targets().size()));
         }
 
         return awsResponse;
@@ -325,15 +336,19 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Calls ListTargetsByRule and returns the result.
-     * @param awsRequest The ListTargetsByRuleRequest
+     * 
+     * @param awsRequest  The ListTargetsByRuleRequest
      * @param proxyClient The client used to make the request
-     * @param logger The logger
-     * @param stackId The stack id (used for logging)
+     * @param logger      The logger
+     * @param stackId     The stack id (used for logging)
      * @return The ListTargetsByRuleResponse
      */
-    static ListTargetsByRuleResponse listTargets(ListTargetsByRuleRequest awsRequest, ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
-        ListTargetsByRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::listTargetsByRule);
-        logger.log(String.format("StackId: %s: %s [%s] successfully read.", stackId, "AWS::Events::Target", awsResponse.targets().size()));
+    static ListTargetsByRuleResponse listTargets(ListTargetsByRuleRequest awsRequest,
+            ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
+        ListTargetsByRuleResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest,
+                proxyClient.client()::listTargetsByRule);
+        logger.log(String.format("StackId: %s: %s [%s] successfully read.", stackId, "AWS::Events::Target",
+                awsResponse.targets().size()));
         return awsResponse;
     }
 
@@ -348,7 +363,8 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @return A ProgressEvent with a 30-second delay on the first invocation, and a normal ProgressEvent on subsequent
      * invocations.
      */
-    static ProgressEvent<ResourceModel, CallbackContext> delayedProgress(ProgressEvent<ResourceModel, CallbackContext> progress, int callbackDelaySeconds, int delayCount) {
+    static ProgressEvent<ResourceModel, CallbackContext> delayedProgress(
+            ProgressEvent<ResourceModel, CallbackContext> progress, int callbackDelaySeconds, int delayCount) {
         ProgressEvent<ResourceModel, CallbackContext> progressEvent;
 
         if (progress.getCallbackContext().getCompletedPropagationDelays() < delayCount) {
