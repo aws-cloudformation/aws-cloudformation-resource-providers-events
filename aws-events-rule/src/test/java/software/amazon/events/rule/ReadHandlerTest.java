@@ -2,22 +2,30 @@ package software.amazon.events.rule;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.params.provider.ValueSource;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.*;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse.Builder;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.events.rule.ResourceModel.ResourceModelBuilder;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -79,7 +87,8 @@ public class ReadHandlerTest extends AbstractTestBase {
 
         Map<String, Object> eventMapperMap;
         try {
-            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>() {
+            });
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -93,23 +102,27 @@ public class ReadHandlerTest extends AbstractTestBase {
                 .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId")
                 .build());
 
-        final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
-                .build();
-
-        final ResourceModel resultModel = ResourceModel.builder()
-                .name(model.getName())
+        final ResourceModel expectedModel = ResourceModel.builder()
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
+                .id(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
                 .targets(targets)
                 .build();
 
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .arn(expectedModel.getArn())
+                .description(expectedModel.getDescription())
+                .eventPattern(eventPatternString)
+                .state(expectedModel.getState())
+                .build();
         // MOCK
 
         /*
-        describeRule
-        listTargetsByRule
+         * describeRule
+         * listTargetsByRule
          */
 
         Collection<software.amazon.awssdk.services.cloudwatchevents.model.Target> responseTargets = new ArrayList<>();
@@ -119,13 +132,6 @@ public class ReadHandlerTest extends AbstractTestBase {
                     .arn(target.getArn())
                     .build());
         }
-
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(resultModel.getName())
-                .description(resultModel.getDescription())
-                .eventPattern(eventPatternString)
-                .state(resultModel.getState())
-                .build();
 
         final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
                 .targets(responseTargets)
@@ -137,20 +143,21 @@ public class ReadHandlerTest extends AbstractTestBase {
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
                 .thenReturn(listTargetsByRuleResponse);
 
-        //RUN
+        // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
-            .desiredResourceState(model)
-            .build();
+                .awsAccountId(SOURCE_ACCOUNT_ID)
+                .desiredResourceState(ResourceModel.builder().arn(EVENT_RULE_ARN_DEFAULT_BUS).build())
+                .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request,
+                new CallbackContext(), proxyClient, logger);
 
         // ASSERT
-
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
-        assertThat(response.getResourceModel()).isEqualTo(resultModel);
+        assertThat(response.getResourceModel()).isEqualTo(expectedModel);
         assertThat(response.getResourceModels()).isNull();
         assertThat(response.getMessage()).isNull();
         assertThat(response.getErrorCode()).isNull();
@@ -179,7 +186,8 @@ public class ReadHandlerTest extends AbstractTestBase {
 
         Map<String, Object> eventMapperMap;
         try {
-            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>() {
+            });
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -187,10 +195,11 @@ public class ReadHandlerTest extends AbstractTestBase {
         // MODEL
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ResourceModel resultModel = ResourceModel.builder()
+                .id(EVENT_RULE_NAME)
                 .name(model.getName())
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
@@ -200,8 +209,8 @@ public class ReadHandlerTest extends AbstractTestBase {
         // MOCK
 
         /*
-        describeRule
-        listTargetsByRule
+         * describeRule
+         * listTargetsByRule
          */
 
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
@@ -220,16 +229,17 @@ public class ReadHandlerTest extends AbstractTestBase {
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
                 .thenReturn(listTargetsByRuleResponse);
 
-        //RUN
+        // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request,
+                new CallbackContext(), proxyClient, logger);
 
         // ASSERT
-
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
@@ -246,26 +256,28 @@ public class ReadHandlerTest extends AbstractTestBase {
         // MODEL
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         // MOCK
 
         /*
-        describeRule
-        listTargetsByRule
+         * describeRule
+         * listTargetsByRule
          */
 
         when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
                 .thenThrow(ResourceNotFoundException.class);
 
-        //RUN
+        // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request,
+                new CallbackContext(), proxyClient, logger);
 
         // ASSERT
 
@@ -298,7 +310,8 @@ public class ReadHandlerTest extends AbstractTestBase {
 
         Map<String, Object> eventMapperMap;
         try {
-            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
+            eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>() {
+            });
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -422,11 +435,12 @@ public class ReadHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         final ResourceModel resultModel = ResourceModel.builder()
-                .name(model.getName())
+                .id(EVENT_RULE_NAME)
+                .name(EVENT_RULE_NAME)
                 .description("TestDescription")
                 .eventPattern(eventMapperMap)
                 .state("ENABLED")
@@ -436,12 +450,12 @@ public class ReadHandlerTest extends AbstractTestBase {
         // MOCK
 
         /*
-        describeRule
-        listTargetsByRule
+         * describeRule
+         * listTargetsByRule
          */
 
         Collection<software.amazon.awssdk.services.cloudwatchevents.model.Target> responseTargets = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
+        for (software.amazon.events.rule.Target target : targets) {
             responseTargets.add(convertTarget(target));
         }
 
@@ -462,13 +476,15 @@ public class ReadHandlerTest extends AbstractTestBase {
         when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
                 .thenReturn(listTargetsByRuleResponse);
 
-        //RUN
+        // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
-        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request,
+                new CallbackContext(), proxyClient, logger);
 
         // ASSERT
 
@@ -482,19 +498,24 @@ public class ReadHandlerTest extends AbstractTestBase {
     }
 
     /**
-     * A hacky way to avoid rewriting logic to convert ResourceModel Targets to AwsSdk Targets
+     * A hacky way to avoid rewriting logic to convert ResourceModel Targets to
+     * AwsSdk Targets
+     *
      * @param target A ResourceModel Target
-     * @return An AwsSdk Target
+     * @return An AwsSdk Targetreq
      */
-    private software.amazon.awssdk.services.cloudwatchevents.model.Target convertTarget(software.amazon.events.rule.Target target) {
+    private software.amazon.awssdk.services.cloudwatchevents.model.Target convertTarget(
+            software.amazon.events.rule.Target target) {
         HashSet<software.amazon.events.rule.Target> targets = new HashSet<>();
         targets.add(target);
         ResourceModel model = ResourceModel.builder()
                 .targets(targets)
-                .name("NAME")
+                .name(EVENT_RULE_NAME)
                 .build();
 
-        PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model);
+        CompositePID compositePID = new CompositePID(model, SOURCE_ACCOUNT_ID);
+
+        PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model, compositePID);
 
         return putTargetsRequest.targets().get(0);
     }

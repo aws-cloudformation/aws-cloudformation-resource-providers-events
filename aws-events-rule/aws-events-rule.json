@@ -3,6 +3,9 @@
   "description": "Resource Type definition for AWS::Events::Rule",
   "additionalProperties": false,
   "properties": {
+    "Id": {
+      "type": "string"
+    },
     "EventBusName": {
       "type": "string",
       "description": "The name or ARN of the event bus associated with the rule. If you omit this, the default event bus is used."
@@ -546,6 +549,13 @@
     "/properties/Arn"
   ],
   "readOnlyProperties": [
+    "/properties/Id",
     "/properties/Arn"
-  ]
+  ],
+  "nonPublicProperties": [
+    "/properties/Id"
+  ],
+  "tagging": {
+    "taggable": false
+  }
 }

@@ -99,7 +99,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @param logger The logger
      * @return Whether it is safe to move on to stabilization
      */
-    static boolean mitigateFailedRemoveTargets(ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger) {
+    static boolean mitigateFailedRemoveTargets(ProxyClient<CloudWatchEventsClient> proxyClient, CompositePID compositePID, CallbackContext callbackContext, Logger logger) {
       boolean hasFailedEntries = callbackContext.getRemoveTargetsResponse().hasFailedEntries() && callbackContext.getRemoveTargetsResponse().failedEntries().size() > 0;
 
       if (hasFailedEntries) {
@@ -113,7 +113,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
                   logger.log(failedEntry.errorMessage());
               }
 
-              RemoveTargetsRequest removeTargetsRequest = Translator.translateToRemoveTargetsRequest(model, failedEntryIds);
+              RemoveTargetsRequest removeTargetsRequest = Translator.translateToRemoveTargetsRequest(compositePID, failedEntryIds);
 
               // Retry request
               callbackContext.setRetryAttemptsForRemoveTargets(callbackContext.getRetryAttemptsForRemoveTargets() + 1);
@@ -132,17 +132,17 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     /**
      * Determines whether PutRule has stabilized.
      * @param proxyClient The client used to read the resource
-     * @param model The model used to generate a read request
+     * @param compositePID CompositePID object
      * @param logger The logger
      * @param stackId The stack id (sued for logging
      * @return Whether the request has stabilized
      */
-    static boolean stabilizePutRule(ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, Logger logger, String stackId) {
+    static boolean stabilizePutRule(ProxyClient<CloudWatchEventsClient> proxyClient, CompositePID compositePID, Logger logger, String stackId) {
         boolean stabilized;
 
         try {
             proxyClient.injectCredentialsAndInvokeV2(
-                    Translator.translateToDescribeRuleRequest(model),
+                    Translator.translateToDescribeRuleRequest(compositePID),
                     proxyClient.client()::describeRule);
 
             stabilized = true;
@@ -151,7 +151,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             stabilized = false;
         }
 
-        logger.log(String.format("StackId: %s: %s [%s] has been stabilized: %s", stackId, ResourceModel.TYPE_NAME, model.getName(), stabilized));
+        logger.log(String.format("StackId: %s: %s [%s] has been stabilized: %s", stackId, ResourceModel.TYPE_NAME, compositePID.getEventRuleName(), stabilized));
         return stabilized;
     }
 
@@ -163,13 +163,14 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * @param callbackContext The CallbackContext containing the number of retries attempted and the response from the last attempt
      * @param logger The logger
      * @param stackId The stack id (used for logging)
+     * @param compositePID CompositePID
      * @return Whether the request has stabilized
      */
-    static boolean stabilizePutTargets(PutTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId) {
+    static boolean stabilizePutTargets(PutTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId, final CompositePID compositePID) {
         boolean stabilized = true;
 
         if (model.getTargets() != null) {
-            PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model);
+            PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model, compositePID);
 
             if (callbackContext.getPutTargetsResponse() == null) {
                 callbackContext.setPutTargetsResponse(awsResponse);
@@ -187,21 +188,21 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
      * Determines whether RemoveTargets has stabilized.
      * @param awsResponse The response from the first call to RemoveTargets
      * @param proxyClient The client used to read the resource and retry if necessary
-     * @param model The model used to generate a read request
+     * @param compositePID CompositePID object
      * @param callbackContext The CallbackContext containing the number of retries attempted and the response from the last attempt
      * @param logger The logger
      * @param stackId The stack id (used for logging)
      * @param targetIdsToDelete The list of target ids that were to be deleted
      * @return Whether the request has stabilized
      */
-    static boolean stabilizeRemoveTargets(RemoveTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, ResourceModel model, CallbackContext callbackContext, Logger logger, String stackId, List<String> targetIdsToDelete) {
+    static boolean stabilizeRemoveTargets(RemoveTargetsResponse awsResponse, ProxyClient<CloudWatchEventsClient> proxyClient, CompositePID compositePID, CallbackContext callbackContext, Logger logger, String stackId, List<String> targetIdsToDelete) {
 
         if (callbackContext.getRemoveTargetsResponse() == null) {
             callbackContext.setRemoveTargetsResponse(awsResponse);
         }
 
         boolean stabilized = targetIdsToDelete.size() == 0 ||
-                mitigateFailedRemoveTargets(proxyClient, model, callbackContext, logger);
+                mitigateFailedRemoveTargets(proxyClient, compositePID, callbackContext, logger);
 
         logger.log(String.format("StackId: %s: %s [%s] delete has stabilized: %s", stackId, "AWS::Events::Target", targetIdsToDelete, stabilized));
         return stabilized;

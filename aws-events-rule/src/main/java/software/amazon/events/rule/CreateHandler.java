@@ -8,8 +8,19 @@ import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.cloudformation.resource.IdentifierUtils;
 
 public class CreateHandler extends BaseHandlerStd {
+    private final int EVENT_RULE_NAME_MAX_LENGTH = 64;
+
+    private String generateEventRuleName(final ResourceHandlerRequest<ResourceModel> request) {
+        return IdentifierUtils.generateResourceIdentifier(
+            request.getStackId(),
+            request.getLogicalResourceIdentifier(),
+            request.getClientRequestToken(),
+            EVENT_RULE_NAME_MAX_LENGTH
+        );
+    }
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
         final AmazonWebServicesClientProxy proxy,
@@ -19,13 +30,22 @@ public class CreateHandler extends BaseHandlerStd {
         final Logger logger) {
 
         this.logger = logger;
+        final ResourceModel resourceModel = request.getDesiredResourceState();
 
-        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
+        // Auto generate name if not present
+        if (resourceModel.getName() == null) {
+            resourceModel.setName(generateEventRuleName(request));
+        }
+
+        final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
+        resourceModel.setId(compositePID.getPid());
+
+        return ProgressEvent.progress(resourceModel, callbackContext)
 
             // STEP 1 [check if resource already exists]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Create::PreExistenceCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
+                .translateToServiceRequest((model) -> Translator.translateToDescribeRuleRequest(compositePID))
                 .makeServiceCall((awsRequest, client) -> {
 
                     // Determine whether the rule exists
@@ -56,9 +76,9 @@ public class CreateHandler extends BaseHandlerStd {
             // STEP 2 [create/stabilize rule]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::CreateRule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags()))
+                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags(), compositePID))
                     .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, model, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, compositePID, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> {
                         progress.getResourceModel().setArn(awsResponse.ruleArn());
@@ -71,7 +91,7 @@ public class CreateHandler extends BaseHandlerStd {
             .then(progress -> progress.getResourceModel().getTargets() == null ?
                             progress :
                             proxy.initiate("AWS-Events-Rule::CreateTargets", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToPutTargetsRequest)
+                    .translateToServiceRequest((model) -> Translator.translateToPutTargetsRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> delayedProgress(progress, 30, 2))

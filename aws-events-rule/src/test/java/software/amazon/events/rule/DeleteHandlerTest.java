@@ -63,13 +63,11 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final DeleteHandler handler = new DeleteHandler();
 
         // MODEL
-
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         // MOCK
-
         /*
         listTargetsByRule
         removeTargets
@@ -105,6 +103,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+            .awsAccountId(SOURCE_ACCOUNT_ID)
             .desiredResourceState(model)
             .build();
 
@@ -128,7 +127,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // MODEL
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         // MOCK
@@ -145,6 +144,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .build();
 
