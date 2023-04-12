@@ -4,9 +4,14 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.*;
+import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
@@ -40,8 +45,6 @@ public class DeleteHandlerTest extends AbstractTestBase {
     @Mock
     CloudWatchEventsClient sdkClient;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     @BeforeEach
     public void setup() {
         proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
@@ -62,7 +65,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // MODEL
 
         final ResourceModel model = ResourceModel.builder()
-                .name("TestRule")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
         Set<Target> previousTargets = new HashSet<>();
@@ -72,7 +75,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .build());
 
         final ResourceModel previousModel = ResourceModel.builder()
-                .name("TestRule")
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .description("TestDescription")
                 .state("ENABLED")
                 .targets(previousTargets)
@@ -86,7 +89,9 @@ public class DeleteHandlerTest extends AbstractTestBase {
         deleteRule
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder().build();
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
+                .build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
                 .build();
@@ -106,6 +111,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+            .awsAccountId(SOURCE_ACCOUNT_ID)
             .desiredResourceState(model)
             .previousResourceState(previousModel)
             .build();
@@ -135,6 +141,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // MODEL
 
         final ResourceModel model = ResourceModel.builder()
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .name("TestRule")
                 .build();
 
@@ -165,6 +172,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
                 .previousResourceState(previousModel)
                 .build();
@@ -176,9 +184,6 @@ public class DeleteHandlerTest extends AbstractTestBase {
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
         assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
-//        assertThat(response.getResourceModel()).isNull();
-//        assertThat(response.getResourceModels()).isNull();
-//        assertThat(response.getMessage()).isNull();
         assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.NotFound);
     }
 }

@@ -18,29 +18,32 @@ public class DeleteHandler extends BaseHandlerStd {
 
         this.logger = logger;
 
+        final ResourceModel resourceModel = request.getDesiredResourceState();
         final ResourceModel previousModel = request.getPreviousResourceState();
+        final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
 
-        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
+        logger.log("Targets: " + previousModel.getTargets().toString());
 
+        return ProgressEvent.progress(resourceModel, callbackContext)
             // STEP 1 [check if resource exists]
             .then(progress ->
-                proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
-                    .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
-                    .handleError(this::handleError)
-                    .done(awsResponse -> {
-                        progress.getResourceModel().setArn(awsResponse.arn());
-                        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
-                    })
+            proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                .translateToServiceRequest((model) -> Translator.translateToDescribeRuleRequest(compositePID))
+                .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
+                .handleError(this::handleError)
+                .done(awsResponse -> {
+                    progress.getResourceModel().setArn(awsResponse.arn());
+                    return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
+                })
             )
 
             // STEP 2 [delete targets]
             .then(progress -> previousModel.getTargets() == null || previousModel.getTargets().size() == 0 ?
                         progress :
                         proxy.initiate("AWS-Events-Rule::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(unused -> Translator.translateToRemoveTargetsRequest(previousModel))
+                    .translateToServiceRequest(unused -> Translator.translateToRemoveTargetsRequest(compositePID, previousModel))
                     .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, compositePID, callbackContext, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> delayedProgress(progress, 30, 1))
             )
@@ -48,7 +51,7 @@ public class DeleteHandler extends BaseHandlerStd {
             // STEP 3 [delete rule]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::DeleteRule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToDeleteRuleRequest)
+                    .translateToServiceRequest((model) -> Translator.translateToDeleteRuleRequest(compositePID))
                     .makeServiceCall((awsRequest, client) -> deleteRule(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> delayedProgress(progress, 30, 1))

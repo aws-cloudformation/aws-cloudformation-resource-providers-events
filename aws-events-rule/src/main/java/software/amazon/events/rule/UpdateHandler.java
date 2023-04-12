@@ -21,6 +21,9 @@ public class UpdateHandler extends BaseHandlerStd {
 
         this.logger = logger;
 
+        final ResourceModel resourceModel = request.getDesiredResourceState();
+        final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
+
         // Create lists of ids
         ArrayList<String> existingTargetIds = new ArrayList<>();
         ArrayList<String> modelTargetIds = new ArrayList<>();
@@ -43,26 +46,27 @@ public class UpdateHandler extends BaseHandlerStd {
         // Subtract model target ids from existing target ids to get the list of Targets to delete
         targetIdsToDelete.addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
 
-        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext)
+        return ProgressEvent.progress(resourceModel, callbackContext)
 
-            // STEP 1 [check if resource exists]
+            // STEP 1 [check if resource already exists]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToDescribeRuleRequest)
+                    .translateToServiceRequest((model) -> Translator.translateToDescribeRuleRequest(compositePID))
                     .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> {
                         progress.getResourceModel().setArn(awsResponse.arn());
+                        progress.getResourceModel().setId(compositePID.getPid());
                         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
                     })
             )
 
-            // STEP 2 [update the rule]
+            // STEP 2 [update the rule]putTargetsRequest
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::Update::Rule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags()))
+                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, model, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, compositePID, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .progress()
             )
@@ -71,9 +75,9 @@ public class UpdateHandler extends BaseHandlerStd {
             .then(progress -> targetIdsToDelete.size() == 0 ?
                         progress :
                         proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(model, targetIdsToDelete))
+                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(compositePID, targetIdsToDelete))
                     .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, model, callbackContext, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, compositePID, callbackContext, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> delayedProgress(progress, 30, 1))
             )
@@ -82,9 +86,9 @@ public class UpdateHandler extends BaseHandlerStd {
             .then(progress -> progress.getResourceModel().getTargets() == null || progress.getResourceModel().getTargets().size() == 0 ?
                         progress :
                         proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(Translator::translateToPutTargetsRequest)
+                    .translateToServiceRequest((model) -> Translator.translateToPutTargetsRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, context, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, context, logger, request.getStackId(), compositePID))
                     .handleError(this::handleError)
                     .done(awsResponse -> delayedProgress(progress, 30, 2))
             )

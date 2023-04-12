@@ -43,7 +43,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -58,14 +57,13 @@ public class Translator {
   /**
    * Generates a PutRuleRequest based on a ResourceModel.
    * @param model A ResourceModel containing data to make a PutRuleRequest
-   * @param tags Unused
+   * @param compositePID The CompositePID of the Rule
    * @return A PutRuleRequest
    */
-  static PutRuleRequest translateToPutRuleRequest(final ResourceModel model, Map<String, String> tags) {
+  static PutRuleRequest translateToPutRuleRequest(final ResourceModel model, final CompositePID compositePID) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L39-L43
     String eventPattern = null;
     PutRuleRequest.Builder putRuleRequestBuilder = PutRuleRequest.builder();
-    CompositeId compositeId = new CompositeId(model);
 
     if (model.getEventPattern() != null) {
       try {
@@ -76,8 +74,9 @@ public class Translator {
     }
 
     return putRuleRequestBuilder
-            .name(compositeId.ruleName)
-            .eventBusName(compositeId.eventBusName)
+            .name(compositePID.getEventRuleName())
+            .eventBusName(compositePID.getEventBusName())
+
             .description(model.getDescription())
             .eventPattern(eventPattern)
             .roleArn(model.getRoleArn())
@@ -89,13 +88,13 @@ public class Translator {
   /**
    * Generates a PutTargetsRequest based on a ResourceModel.
    * @param model A ResourceModel containing data to make a PutTargetsRequest
+   * @param compositePID The CompositePID of the Rule
    * @return A PutTargetsRequest
    */
-  static PutTargetsRequest translateToPutTargetsRequest(final ResourceModel model) {
+  static PutTargetsRequest translateToPutTargetsRequest(final ResourceModel model, final CompositePID compositePID) {
     PutTargetsRequest putTargetsRequest = null;
 
     if (model.getTargets() != null) {
-      CompositeId compositeId = new CompositeId(model);
 
       ArrayList<Target> targets = new ArrayList<>();
 
@@ -125,8 +124,8 @@ public class Translator {
       }
 
       putTargetsRequest = PutTargetsRequest.builder()
-              .eventBusName(compositeId.eventBusName)
-              .rule(compositeId.ruleName)
+              .rule(compositePID.getEventRuleName())
+              .eventBusName(compositePID.getEventBusName())
               .targets(targets)
               .build();
     }
@@ -135,19 +134,17 @@ public class Translator {
   }
 
   // READ
-
   /**
    * Generates a DescribeRuleRequest based on a ResourceModel.
-   * @param model A ResourceModel containing data to make a DescribeRuleRequest
+   * @param compositePID The CompositePID of the Rule
    * @return A DescribeRuleRequest
    */
-  static DescribeRuleRequest translateToDescribeRuleRequest(final ResourceModel model) {
-    CompositeId compositeId = new CompositeId(model);
+  static DescribeRuleRequest translateToDescribeRuleRequest(final CompositePID compositePID) {
 
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L20-L24
     return DescribeRuleRequest.builder()
-            .name(compositeId.ruleName)
-            .eventBusName(compositeId.eventBusName)
+            .name(compositePID.getEventRuleName())
+            .eventBusName(compositePID.getEventBusName())
             .build();
   }
 
@@ -228,34 +225,30 @@ public class Translator {
 
   /**
    * Generates a DeleteRuleRequest based on a ResourceModel.
-   * @param model A ResourceModel containing data to make a DeleteRuleRequest
+   * @param compositePID The CompositePID of the Rule
    * @return A DeleteRuleRequest
    */
-  static DeleteRuleRequest translateToDeleteRuleRequest(final ResourceModel model) {
-    CompositeId compositeId = new CompositeId(model);
-
+  static DeleteRuleRequest translateToDeleteRuleRequest(final CompositePID compositePID) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
 
     return DeleteRuleRequest.builder()
-            .name(compositeId.ruleName)
-            .eventBusName(compositeId.eventBusName)
+            .name(compositePID.getEventRuleName())
+            .eventBusName(compositePID.getEventBusName())
             .build();
   }
 
   /**
    * Generates a RemoveTargetsRequest based on a ResourceModel and a Collection of targetIds.
-   * @param model A ResourceModel with data on the Rule with targets that are to be removed
+   * @param compositePID The CompositePID of the Rule
    * @param targetIds A Collection of Strings representing targetIds
    * @return A RemoveTargetsRequest
    */
-  static RemoveTargetsRequest translateToRemoveTargetsRequest(final ResourceModel model, Collection<String> targetIds) {
-    CompositeId compositeId = new CompositeId(model);
-
+  static RemoveTargetsRequest translateToRemoveTargetsRequest(final CompositePID compositePID, Collection<String> targetIds) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
 
     return RemoveTargetsRequest.builder()
-            .rule(compositeId.ruleName)
-            .eventBusName(compositeId.eventBusName)
+            .rule(compositePID.getEventRuleName())
+            .eventBusName(compositePID.getEventBusName())
             .ids(targetIds)
             .build();
   }
@@ -265,14 +258,14 @@ public class Translator {
    * @param model A ResourceModel with data on the Rule with targets that are to be removed
    * @return A RemoveTargetsRequest
    */
-  static RemoveTargetsRequest translateToRemoveTargetsRequest(final ResourceModel model) {
+  static RemoveTargetsRequest translateToRemoveTargetsRequest(final CompositePID compositePID, final ResourceModel model) {
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L33-L37
     ArrayList<String> targetIds = new ArrayList<>();
     for (software.amazon.events.rule.Target target : model.getTargets()) {
       targetIds.add(target.getId());
     }
 
-    return translateToRemoveTargetsRequest(model, targetIds);
+    return translateToRemoveTargetsRequest(compositePID, targetIds);
   }
 
   // LIST
@@ -291,16 +284,15 @@ public class Translator {
 
   /**
    * Generates a ListTargetsByRuleRequest based on a ResourceModel.
-   * @param model A ResourceModel with data on the Rule whose targets are to be read.
+   * @param compositePID The CompositePID of the Rule
    * @return A ListTargetsByRuleRequest
    */
-  static ListTargetsByRuleRequest translateToListTargetsByRuleRequest(final ResourceModel model) {
-    CompositeId compositeId = new CompositeId(model);
+  static ListTargetsByRuleRequest translateToListTargetsByRuleRequest(final CompositePID compositePID) {
 
     // e.g. https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-logs/blob/2077c92299aeb9a68ae8f4418b5e932b12a8b186/aws-logs-loggroup/src/main/java/com/aws/logs/loggroup/Translator.java#L20-L24
     return ListTargetsByRuleRequest.builder()
-            .rule(compositeId.ruleName)
-            .eventBusName(compositeId.eventBusName)
+            .rule(compositePID.getEventRuleName())
+            .eventBusName(compositePID.getEventBusName())
             .build();
   }
 

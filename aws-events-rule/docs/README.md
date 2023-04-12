@@ -137,6 +137,10 @@ The `Fn::GetAtt` intrinsic function returns a value for a specified attribute of
 
 For more information about using the `Fn::GetAtt` intrinsic function, see [Fn::GetAtt](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-getatt.html).
 
+#### Id
+
+Returns the <code>Id</code> value.
+
 #### Arn
 
 The ARN of the rule, such as arn:aws:events:us-east-2:123456789012:rule/example.
