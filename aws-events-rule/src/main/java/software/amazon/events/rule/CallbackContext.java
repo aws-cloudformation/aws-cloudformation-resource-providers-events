@@ -1,11 +1,8 @@
 package software.amazon.events.rule;
 
-import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
 import software.amazon.cloudformation.proxy.StdCallbackContext;
-
-import java.util.ArrayList;
 
 @lombok.Getter
 @lombok.Setter

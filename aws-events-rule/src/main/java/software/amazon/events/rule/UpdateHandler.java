@@ -1,9 +1,7 @@
 package software.amazon.events.rule;
 
-import com.google.common.collect.Sets;
 import org.apache.commons.collections4.CollectionUtils;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
