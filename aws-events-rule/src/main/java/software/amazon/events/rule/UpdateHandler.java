@@ -23,9 +23,6 @@ public class UpdateHandler extends BaseHandlerStd {
         final ResourceModel resourceModel = request.getDesiredResourceState();
         final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
 
-        final ResourceModel resourceModel = request.getDesiredResourceState();
-        final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
-
         // Create lists of ids
         ArrayList<String> existingTargetIds = new ArrayList<>();
         ArrayList<String> modelTargetIds = new ArrayList<>();

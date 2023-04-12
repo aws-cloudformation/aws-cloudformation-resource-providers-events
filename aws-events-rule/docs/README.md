@@ -144,4 +144,3 @@ Returns the <code>Id</code> value.
 #### Arn
 
 The ARN of the rule, such as arn:aws:events:us-east-2:123456789012:rule/example.
-

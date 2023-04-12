@@ -336,7 +336,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
     /**
      * Calls ListTargetsByRule and returns the result.
-     * 
+     *
      * @param awsRequest  The ListTargetsByRuleRequest
      * @param proxyClient The client used to make the request
      * @param logger      The logger
