@@ -3,7 +3,6 @@ package software.amazon.events.rule;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 import lombok.Getter;
 
 import static java.util.Objects.isNull;
