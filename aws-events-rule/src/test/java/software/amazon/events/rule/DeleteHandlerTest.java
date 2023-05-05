@@ -1,6 +1,8 @@
 package software.amazon.events.rule;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -9,6 +11,8 @@ import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.DeleteRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
@@ -59,7 +63,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
     }
 
     @Test
-    public void handleRequest_SimpleSuccess() {
+    public void handleRequest_SimpleSuccess_ListTargets() {
         final DeleteHandler handler = new DeleteHandler();
 
         // MODEL
@@ -67,17 +71,85 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
-        Set<Target> previousTargets = new HashSet<>();
-        previousTargets.add(software.amazon.events.rule.Target.builder()
+        Collection<software.amazon.awssdk.services.cloudwatchevents.model.Target> responseTargets = new ArrayList<>();
+        responseTargets.add(software.amazon.awssdk.services.cloudwatchevents.model.Target.builder()
                 .id("ToDeleteId")
                 .arn("ToDeleteArn")
                 .build());
 
-        final ResourceModel previousModel = ResourceModel.builder()
+        // MOCK
+        /*
+        describeRule
+        removeTargets
+        deleteRule
+         */
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .description("TestDescription")
-                .state("ENABLED")
-                .targets(previousTargets)
+                .build();
+
+        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder() // TODO
+                .targets(responseTargets)
+                .build();
+
+        final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
+                .build();
+
+        final DeleteRuleResponse deleteRuleResponse = DeleteRuleResponse.builder()
+                .build();
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenReturn(describeRuleResponse);
+
+        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
+                .thenReturn(listTargetsByRuleResponse);
+
+        when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
+                .thenReturn(removeTargetsResponse);
+
+        when(proxyClient.client().deleteRule(any(DeleteRuleRequest.class)))
+                .thenReturn(deleteRuleResponse);
+
+        // RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+            .awsAccountId(SOURCE_ACCOUNT_ID)
+            .desiredResourceState(model)
+            .build();
+
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isNull();
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isNull();
+        assertThat(response.getErrorCode()).isNull();
+    }
+
+    @Test
+    public void handleRequest_SimpleSuccess() {
+        final DeleteHandler handler = new DeleteHandler();
+
+        Set<software.amazon.events.rule.Target> targets = new HashSet<>();
+
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("ToDeleteId")
+                .arn("ToDeleteArn")
+                .build());
+
+        // MODEL
+        final ResourceModel model = ResourceModel.builder()
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
+                .targets(targets)
                 .build();
 
         // MOCK
@@ -109,10 +181,9 @@ public class DeleteHandlerTest extends AbstractTestBase {
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
-            .awsAccountId(SOURCE_ACCOUNT_ID)
-            .desiredResourceState(model)
-            .previousResourceState(previousModel)
-            .build();
+                .awsAccountId(SOURCE_ACCOUNT_ID)
+                .desiredResourceState(model)
+                .build();
 
         CallbackContext context = new CallbackContext();
         ProgressEvent<ResourceModel, CallbackContext> response;
@@ -133,7 +204,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
     }
 
     @Test
-    public void handleRequest_DoesNotExist() {
+    public void handleRequest_DoesNotExist_ListTargets() {
         final DeleteHandler handler = new DeleteHandler();
 
         // MODEL
@@ -141,19 +212,6 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final ResourceModel model = ResourceModel.builder()
                 .arn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .name("TestRule")
-                .build();
-
-        Set<Target> previousTargets = new HashSet<>();
-        previousTargets.add(software.amazon.events.rule.Target.builder()
-                .id("ToDeleteId")
-                .arn("ToDeleteArn")
-                .build());
-
-        final ResourceModel previousModel = ResourceModel.builder()
-                .name("TestRule")
-                .description("TestDescription")
-                .state("ENABLED")
-                .targets(previousTargets)
                 .build();
 
         // MOCK
@@ -172,7 +230,51 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
-                .previousResourceState(previousModel)
+                .build();
+
+        final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
+
+        // ASSERT
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.NotFound);
+    }
+
+    @Test
+    public void handleRequest_DoesNotExist() {
+        final DeleteHandler handler = new DeleteHandler();
+
+        Set<software.amazon.events.rule.Target> targets = new HashSet<>();
+
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("ToDeleteId")
+                .arn("ToDeleteArn")
+                .build());
+
+        // MODEL
+        final ResourceModel model = ResourceModel.builder()
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
+                .targets(targets)
+                .build();
+
+        // MOCK
+
+        /*
+        describeRule
+        removeTargets
+        deleteRule
+         */
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenThrow(ResourceNotFoundException.class);
+
+        // RUN
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
+                .desiredResourceState(model)
                 .build();
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);

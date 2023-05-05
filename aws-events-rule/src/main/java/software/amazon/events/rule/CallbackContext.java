@@ -4,6 +4,9 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
 import software.amazon.cloudformation.proxy.StdCallbackContext;
 
+import java.util.Collection;
+import java.util.Set;
+
 @lombok.Getter
 @lombok.Setter
 @lombok.ToString
@@ -17,4 +20,5 @@ public class CallbackContext extends StdCallbackContext {
     private boolean ruleExists;
     private ResourceModel.ResourceModelBuilder resourceModelBuilder;
     private int completedPropagationDelays;
+    private Collection<String> targetIds;
 }
