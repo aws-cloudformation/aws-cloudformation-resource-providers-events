@@ -1,6 +1,5 @@
 package software.amazon.events.rule;
 
-import org.apache.commons.lang3.ObjectUtils;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
@@ -10,7 +9,6 @@ import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Set;
 
 public class DeleteHandler extends BaseHandlerStd {

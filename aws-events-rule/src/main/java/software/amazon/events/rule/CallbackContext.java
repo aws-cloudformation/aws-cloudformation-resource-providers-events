@@ -5,7 +5,6 @@ import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRespo
 import software.amazon.cloudformation.proxy.StdCallbackContext;
 
 import java.util.Collection;
-import java.util.Set;
 
 @lombok.Getter
 @lombok.Setter
