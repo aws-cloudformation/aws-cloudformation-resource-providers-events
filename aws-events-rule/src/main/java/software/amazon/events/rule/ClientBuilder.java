@@ -13,8 +13,8 @@ public class ClientBuilder {
 
   public static CloudWatchEventsClient getClient() {
     return CloudWatchEventsClient.builder()
-              .httpClient(LambdaWrapper.HTTP_CLIENT)
-              .build();
+            .httpClient(LambdaWrapper.HTTP_CLIENT)
+            .build();
   }
 
 }

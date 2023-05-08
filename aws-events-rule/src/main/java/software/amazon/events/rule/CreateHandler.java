@@ -1,7 +1,8 @@
 package software.amazon.events.rule;
 
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.*;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.Logger;
@@ -76,7 +77,7 @@ public class CreateHandler extends BaseHandlerStd {
             // STEP 2 [create/stabilize rule]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::CreateRule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags(), compositePID))
+                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, compositePID, logger, request.getStackId()))
                     .handleError(this::handleError)

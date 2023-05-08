@@ -2,7 +2,6 @@ package software.amazon.events.rule;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,22 +12,17 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.*;
-import software.amazon.awssdk.services.cloudwatchevents.model.AwsVpcConfiguration;
-import software.amazon.awssdk.services.cloudwatchevents.model.BatchArrayProperties;
-import software.amazon.awssdk.services.cloudwatchevents.model.BatchParameters;
-import software.amazon.awssdk.services.cloudwatchevents.model.BatchRetryStrategy;
-import software.amazon.awssdk.services.cloudwatchevents.model.DeadLetterConfig;
-import software.amazon.awssdk.services.cloudwatchevents.model.EcsParameters;
-import software.amazon.awssdk.services.cloudwatchevents.model.HttpParameters;
-import software.amazon.awssdk.services.cloudwatchevents.model.InputTransformer;
-import software.amazon.awssdk.services.cloudwatchevents.model.KinesisParameters;
-import software.amazon.awssdk.services.cloudwatchevents.model.NetworkConfiguration;
-import software.amazon.awssdk.services.cloudwatchevents.model.RedshiftDataParameters;
-import software.amazon.awssdk.services.cloudwatchevents.model.RetryPolicy;
-import software.amazon.awssdk.services.cloudwatchevents.model.RunCommandParameters;
-import software.amazon.awssdk.services.cloudwatchevents.model.RunCommandTarget;
-import software.amazon.awssdk.services.cloudwatchevents.model.SqsParameters;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.InvalidEventPatternException;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResultEntry;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResultEntry;
 import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
@@ -126,6 +120,21 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
+        previousTargets.add(targets.iterator().next());
+        previousTargets.add(software.amazon.events.rule.Target.builder()
+                .id("ToDeleteId")
+                .arn("ToDeleteArn")
+                .build());
+
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(previousTargets)
+                .build();
+
         // MOCK
 
         /*
@@ -138,21 +147,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         listTargetsByRule
          */
 
-        Collection<Target> responseTargets1 = new ArrayList<>();
-        responseTargets1.add(convertTarget(targets.iterator().next()));
-        responseTargets1.add(Target.builder()
-                .id("ToDeleteId")
-                .arn("ToDeleteArn")
-                .build());
-
-        Collection<Target> responseTargets2 = new ArrayList<>();
-        responseTargets2.add(convertTarget(targets.iterator().next()));
-
-        Collection<Target> responseTargets3 = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets3.add(convertTarget(target));
-        }
-
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .name(model.getName())
                 .description(model.getDescription())
@@ -163,18 +157,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets1)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse2 = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets2)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse3 = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets3)
                 .build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
@@ -189,12 +171,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
 
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse1)
-                .thenReturn(listTargetsByRuleResponse2)
-                .thenReturn(listTargetsByRuleResponse2)
-                .thenReturn(listTargetsByRuleResponse3);
-
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
 
@@ -206,6 +182,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
             .awsAccountId(SOURCE_ACCOUNT_ID)
             .desiredResourceState(model)
+            .previousResourceState(previousModel)
             .build();
 
         CallbackContext context = new CallbackContext();
@@ -265,6 +242,13 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .state("ENABLED")
                 .build();
 
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name(EVENT_RULE_NAME)
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .build();
+
         // MOCK
 
         /*
@@ -287,35 +271,18 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
-        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
-                .build();
-
-        final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
-                .build();
-
-        final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
-                .build();
-
         when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
                 .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
 
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse);
-
-//        when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
-//                .thenReturn(removeTargetsResponse);
-//
-//        when(proxyClient.client().putTargets(any(PutTargetsRequest.class)))
-//                .thenReturn(putTargetsResponse);
-
         // RUN
 
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);
@@ -376,6 +343,13 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .build();
+
         // MOCK
 
         /*
@@ -385,11 +359,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         removeTargets
         putTargets
          */
-
-        Collection<Target> responseTargets = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets.add(convertTarget(target));
-        }
 
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .name(model.getName())
@@ -401,10 +370,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets)
                 .build();
 
         final Collection<PutTargetsResultEntry> PutTargetsResultEntries = new ArrayList<>();
@@ -424,9 +389,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
 
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse);
-
         when(proxyClient.client().putTargets(any(PutTargetsRequest.class)))
                 .thenReturn(putTargetsResponse);
 
@@ -435,6 +397,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         CallbackContext context = new CallbackContext();
@@ -499,6 +462,22 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
+        previousTargets.addAll(targets);
+        String targetToRemoveId = "ToDeleteId";
+        previousTargets.add(software.amazon.events.rule.Target.builder()
+                .id(targetToRemoveId)
+                .arn("ToDeleteArn")
+                .build());
+
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(previousTargets)
+                .build();
+
         // MOCK
 
         /*
@@ -509,18 +488,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         removeTargets
         putTargets
          */
-
-        Collection<Target> responseTargets = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets.add(convertTarget(target));
-        }
-
-        Target targetToRemove = Target.builder()
-                .id("TestLambdaFunctionIdToRemove")
-                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionIdToRemove")
-                .build();
-
-        responseTargets.add(targetToRemove);
 
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .name(model.getName())
@@ -534,13 +501,9 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
 
-        final ListTargetsByRuleResponse listTargetsByRuleResponse = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets)
-                .build();
-
         final Collection<RemoveTargetsResultEntry> removeTargetsResultEntries = new ArrayList<>();
         removeTargetsResultEntries.add(RemoveTargetsResultEntry.builder()
-                .targetId(targetToRemove.id())
+                .targetId(targetToRemoveId)
                 .build());
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
@@ -553,9 +516,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
 
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse);
-
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
 
@@ -564,6 +524,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         CallbackContext context = new CallbackContext();
@@ -736,6 +697,22 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
+        previousTargets.addAll(targets);
+        String targetToRemoveId = "ToDeleteId";
+        previousTargets.add(software.amazon.events.rule.Target.builder()
+                .id(targetToRemoveId)
+                .arn("ToDeleteArn")
+                .build());
+
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(previousTargets)
+                .build();
+
         // MOCK
 
         /*
@@ -751,20 +728,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         listTargetsByRule
          */
 
-        Collection<Target> responseTargets1 = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets1.add(convertTarget(target));
-        }
-        responseTargets1.add(Target.builder()
-                .id("ToDeleteId")
-                .arn("ToDeleteArn")
-                .build());
-
-        Collection<Target> responseTargets2 = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets2.add(convertTarget(target));
-        }
-
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .name(model.getName())
                 .description(model.getDescription())
@@ -775,14 +738,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets1)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse2 = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets2)
                 .build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
@@ -797,11 +752,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
 
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse1)
-                .thenReturn(listTargetsByRuleResponse2)
-                .thenReturn(listTargetsByRuleResponse2);
-
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
 
@@ -813,6 +763,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         CallbackContext context = new CallbackContext();
@@ -941,6 +892,22 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
+        previousTargets.addAll(targets);
+        String targetToRemoveId = "ToDeleteId";
+        previousTargets.add(software.amazon.events.rule.Target.builder()
+                .id(targetToRemoveId)
+                .arn("ToDeleteArn")
+                .build());
+
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(previousTargets)
+                .build();
+
         // MOCK
 
         /*
@@ -954,20 +921,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         listTargetsByRule
          */
 
-        Collection<Target> responseTargets1 = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets1.add(convertTarget(target));
-        }
-        responseTargets1.add(Target.builder()
-                .id("ToDeleteId")
-                .arn("ToDeleteArn")
-                .build());
-
-        Collection<Target> responseTargets2 = new ArrayList<>();
-        for (software.amazon.events.rule.Target target :targets) {
-            responseTargets2.add(convertTarget(target));
-        }
-
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .name(model.getName())
                 .description(model.getDescription())
@@ -978,14 +931,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse1 = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets1)
-                .build();
-
-        final ListTargetsByRuleResponse listTargetsByRuleResponse2 = ListTargetsByRuleResponse.builder()
-                .targets(responseTargets2)
                 .build();
 
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
@@ -1000,11 +945,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
 
-        when(proxyClient.client().listTargetsByRule(any(ListTargetsByRuleRequest.class)))
-                .thenReturn(listTargetsByRuleResponse1)
-                .thenReturn(listTargetsByRuleResponse2)
-                .thenReturn(listTargetsByRuleResponse2);
-
         when(proxyClient.client().removeTargets(any(RemoveTargetsRequest.class)))
                 .thenReturn(removeTargetsResponse);
 
@@ -1016,6 +956,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         CallbackContext context = new CallbackContext();
@@ -1087,6 +1028,17 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
+        previousTargets.addAll(targets);
+
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("TestRule")
+                .description("TestDescription")
+                .eventPattern(eventMapperMap)
+                .state("ENABLED")
+                .targets(previousTargets)
+                .build();
+
         // MOCK
 
         /*
@@ -1118,6 +1070,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         CallbackContext context = new CallbackContext();

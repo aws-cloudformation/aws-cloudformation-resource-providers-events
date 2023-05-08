@@ -35,9 +35,6 @@ public class AbstractTestBase {
   protected static final String MOCK_STACK_ID = "arn:aws:cloudformation:us-east-1:123456789012:stack/mystack/f449b250-b969-11e0-a185-5081d0136786";
   protected static final String MOCK_LOGICAL_ID = "MyEventRule";
   protected static final String MOCK_CLIENT_TOKEN = "f119b160-b969-11e0-a185-5081d0131234";
-  protected static final String MOCK_EVENT_RULE_NAME = "CustomEventRuleName";
-  protected static final String MOCK_CUSTOM_EVENT_BUS_NAME = "CustomEventBus";
-  protected static final String MOCK_CROSS_ACCOUNT_EVENT_BUS_ARN = "arn:aws:events:us-east-1:123456789013:event-bus/custom.event.bus.crossaccount";
 
   protected static final Credentials MOCK_CREDENTIALS;
   protected static final LoggerProxy logger;
