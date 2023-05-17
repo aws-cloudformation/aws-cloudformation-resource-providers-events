@@ -1,8 +1,11 @@
 package software.amazon.events.rule;
 
+import com.amazonaws.AmazonServiceException;
+import com.fasterxml.jackson.databind.ser.Serializers;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
+import software.amazon.cloudformation.exceptions.CfnThrottlingException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.Logger;
@@ -58,6 +61,14 @@ public class CreateHandler extends BaseHandlerStd {
                         logger.log(String.format("StackId: %s: %s [%s] does not yet exist.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                         callbackContext.setRuleExists(false);
                     }
+                    catch (AmazonServiceException e) {
+                        if (callbackContext.isRuleCreated() && BaseHandlerStd.isThrottlingException(e)) {
+                            callbackContext.setRuleExists(true);
+                        }
+                        else {
+                            throw e;
+                        }
+                    }
 
                     return DescribeRuleResponse.builder().build();
                 })
@@ -83,6 +94,7 @@ public class CreateHandler extends BaseHandlerStd {
                     .handleError(this::handleError)
                     .done(awsResponse -> {
                         progress.getResourceModel().setArn(awsResponse.ruleArn());
+                        callbackContext.setRuleCreated(true);
 
                         return delayedProgress(progress, 30, 1);
                     })

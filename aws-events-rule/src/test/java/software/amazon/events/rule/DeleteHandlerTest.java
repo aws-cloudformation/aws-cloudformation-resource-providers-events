@@ -183,6 +183,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .stackId("STACK_ID")
                 .build();
 
         CallbackContext context = new CallbackContext();
@@ -275,6 +276,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .stackId("STACK_ID")
                 .build();
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);

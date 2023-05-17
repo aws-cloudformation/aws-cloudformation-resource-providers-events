@@ -2,6 +2,7 @@ package software.amazon.events.rule;
 
 import static java.util.Objects.requireNonNull;
 
+import com.amazonaws.AmazonServiceException;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
@@ -37,6 +38,7 @@ import software.amazon.cloudformation.exceptions.CfnInvalidRequestException;
 import software.amazon.cloudformation.exceptions.CfnInternalFailureException;
 import software.amazon.cloudformation.exceptions.CfnResourceConflictException;
 import software.amazon.cloudformation.exceptions.CfnServiceLimitExceededException;
+import software.amazon.cloudformation.exceptions.CfnThrottlingException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
@@ -58,6 +60,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     public static final int MAX_RETRIES_ON_REMOVE_TARGETS = 5;
     protected Logger logger;
 
+    private static final String ERROR_CODE_THROTTLING_EXCEPTION = "ThrottlingException";
     private final CloudWatchEventsClient cloudWatchEventsClient;
 
     protected BaseHandlerStd() {
@@ -187,6 +190,12 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             stabilized = true;
         } catch (ResourceNotFoundException e) {
             stabilized = false;
+        } catch (AmazonServiceException e) {
+            if (isThrottlingException(e)) {
+                stabilized = false;
+            } else {
+                throw e;
+            }
         }
 
         logger.log(String.format("StackId: %s: %s [%s] has been stabilized: %s", stackId, ResourceModel.TYPE_NAME,
@@ -480,9 +489,37 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             } else {
                 ex = new CfnGeneralServiceException(e);
             }
-        } else { // InternalException
+        } else if (e instanceof AmazonServiceException) {
+            if (ERROR_CODE_THROTTLING_EXCEPTION.equals(getErrorCode(e))) {
+                ex = new CfnThrottlingException(e);
+            } else {
+                ex = new CfnGeneralServiceException(e);
+            }
+        }
+        else { // InternalException
             ex = new CfnGeneralServiceException(e);
         }
         return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), ex.getMessage());
+    }
+
+    public static boolean isThrottlingException(Exception e) {
+        return e instanceof AmazonServiceException &&
+                ERROR_CODE_THROTTLING_EXCEPTION.equals(getErrorCode(e));
+    }
+
+    public ProgressEvent<ResourceModel, CallbackContext> CatchThrottling(ProgressEvent<ResourceModel, CallbackContext> progressEvent) {
+        if (progressEvent.isFailed() && progressEvent.getErrorCode().equals(ERROR_CODE_THROTTLING_EXCEPTION)) {
+            return ProgressEvent.progress(progressEvent.getResourceModel(), progressEvent.getCallbackContext());
+        } else {
+            return progressEvent;
+        }
+    }
+
+    protected static String getErrorCode(final Exception e) {
+        if (e instanceof AwsServiceException &&
+                ((AwsServiceException) e).awsErrorDetails() != null) {
+            return ((AwsServiceException) e).awsErrorDetails().errorCode();
+        }
+        return e.getMessage();
     }
 }
