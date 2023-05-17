@@ -14,6 +14,8 @@ import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleRespon
 import software.amazon.awssdk.services.cloudwatchevents.model.InternalException;
 import software.amazon.awssdk.services.cloudwatchevents.model.InvalidEventPatternException;
 import software.amazon.awssdk.services.cloudwatchevents.model.LimitExceededException;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
+import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
@@ -112,7 +114,8 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             }
         }
 
-        return !hasFailedEntries;
+        return !callbackContext.getPutTargetsResponse().hasFailedEntries() ||
+                callbackContext.getPutTargetsResponse().failedEntries().size() == 0;
     }
 
     /**
@@ -132,7 +135,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
 
         if (hasFailedEntries) {
             if (callbackContext.getRetryAttemptsForRemoveTargets() < MAX_RETRIES_ON_REMOVE_TARGETS) {
-                logger.log(String.format("RemoveTTargets has %s failed entries. Retrying...",
+                logger.log(String.format("Remove Targets has %s failed entries. Retrying...",
                         callbackContext.getRemoveTargetsResponse().failedEntryCount()));
 
                 // Build a new request from failed entries
@@ -159,7 +162,8 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             }
         }
 
-        return !hasFailedEntries;
+        return !callbackContext.getRemoveTargetsResponse().hasFailedEntries() ||
+                callbackContext.getRemoveTargetsResponse().failedEntries().size() == 0;
     }
 
     /**
@@ -353,6 +357,24 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     }
 
     /**
+     * Calls ListRules and returns the result.
+     *
+     * @param awsRequest  The ListRulesRequest
+     * @param proxyClient The client used to make the request
+     * @param logger      The logger
+     * @param stackId     The stack id (used for logging)
+     * @return The ListRulesResponse
+     */
+    static ListRulesResponse listRules(ListRulesRequest awsRequest,
+                                       ProxyClient<CloudWatchEventsClient> proxyClient, Logger logger, String stackId) {
+        ListRulesResponse awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest,
+                proxyClient.client()::listRules);
+        logger.log(String.format("StackId: %s: %s [%s] successfully read.", stackId, "AWS::Events::Rule",
+                awsResponse.rules().size()));
+        return awsResponse;
+    }
+
+    /**
      * Returns a ProgressEvent with a delay that does not result in an infinite loop.
      *
      * @param progress             The ProgressEvent object
@@ -446,14 +468,14 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             return ProgressEvent.defaultFailureHandler(e, HandlerErrorCode.AlreadyExists);
         } else if (e instanceof AwsServiceException) {
             if (((AwsServiceException) e).awsErrorDetails().equals("")) { // Do not touch. IDK man...
-                ex = new CfnInternalFailureException(e);
+                ex = new CfnGeneralServiceException(e);
             }
             if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (put)")) {
-                ex = new CfnInternalFailureException(e);
+                ex = new CfnGeneralServiceException(e);
                 return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to create/update");
             }
             if (((AwsServiceException) e).awsErrorDetails().errorCode().equals("FailedEntries (remove)")) {
-                ex = new CfnInternalFailureException(e);
+                ex = new CfnGeneralServiceException(e);
                 return ProgressEvent.failed(resourceModel, callbackContext, ex.getErrorCode(), "Target(s) failed to be removed");
             } else {
                 ex = new CfnGeneralServiceException(e);

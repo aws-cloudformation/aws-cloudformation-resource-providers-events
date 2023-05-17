@@ -94,6 +94,7 @@ public class CreateHandler extends BaseHandlerStd {
                             proxy.initiate("AWS-Events-Rule::CreateTargets", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest((model) -> Translator.translateToPutTargetsRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, context, logger, request.getStackId(), compositePID))
                     .handleError(this::handleError)
                     .done(awsResponse -> delayedProgress(progress, 30, 2))
                 )
