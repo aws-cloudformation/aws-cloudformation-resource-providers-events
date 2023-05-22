@@ -60,7 +60,7 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
     public static final int MAX_RETRIES_ON_REMOVE_TARGETS = 5;
     protected Logger logger;
 
-    private static final String ERROR_CODE_THROTTLING_EXCEPTION = "ThrottlingException";
+    public static final String ERROR_CODE_THROTTLING_EXCEPTION = "ThrottlingException";
     private final CloudWatchEventsClient cloudWatchEventsClient;
 
     protected BaseHandlerStd() {

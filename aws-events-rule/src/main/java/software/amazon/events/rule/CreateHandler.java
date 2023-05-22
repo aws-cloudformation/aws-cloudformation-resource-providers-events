@@ -61,14 +61,6 @@ public class CreateHandler extends BaseHandlerStd {
                         logger.log(String.format("StackId: %s: %s [%s] does not yet exist.", request.getStackId(), ResourceModel.TYPE_NAME, awsRequest.name()));
                         callbackContext.setRuleExists(false);
                     }
-                    catch (AmazonServiceException e) {
-                        if (callbackContext.isRuleCreated() && BaseHandlerStd.isThrottlingException(e)) {
-                            callbackContext.setRuleExists(true);
-                        }
-                        else {
-                            throw e;
-                        }
-                    }
 
                     return DescribeRuleResponse.builder().build();
                 })
@@ -107,7 +99,14 @@ public class CreateHandler extends BaseHandlerStd {
                     .translateToServiceRequest((model) -> Translator.translateToPutTargetsRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, context, logger, request.getStackId(), compositePID))
-                    .handleError(this::handleError)
+                    .handleError((req, e, proxyC, model, context) -> {
+
+                        if (BaseHandlerStd.ERROR_CODE_THROTTLING_EXCEPTION.equals(BaseHandlerStd.getErrorCode(e)))
+                        {
+                            return ProgressEvent.defaultInProgressHandler(context, 5, model);
+                        }
+                        return handleError(req, e, proxyC, model, context);
+                    })
                     .done(awsResponse -> delayedProgress(progress, 30, 2))
                 )
 
