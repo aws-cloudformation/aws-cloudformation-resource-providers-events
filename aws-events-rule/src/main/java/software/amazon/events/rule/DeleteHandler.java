@@ -45,10 +45,10 @@ public class DeleteHandler extends BaseHandlerStd {
                     })
             )
 
-            // STEP 3 [get targets]
-            .then(progress -> callbackContext.getTargetIds().size() != 0 ?
+            // STEP 2 [get targets]
+            .then(progress -> request.getStackId() != null ?
                     progress :
-                // If there are no targets in the resource model, get them
+                // If CCAPI, get targets
                 softFailAccessDenied(() -> proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest((model ) -> Translator.translateToListTargetsByRuleRequest(compositePID))
                     .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
@@ -80,7 +80,7 @@ public class DeleteHandler extends BaseHandlerStd {
                     .done(awsResponse -> delayedProgress(progress, 30, 1))
             )
 
-            // STEP 4 [return the successful progress event without resource model]
+            // STEP 5 [return the successful progress event without resource model]
             .then(progress -> ProgressEvent.defaultSuccessHandler(null));
     }
 
