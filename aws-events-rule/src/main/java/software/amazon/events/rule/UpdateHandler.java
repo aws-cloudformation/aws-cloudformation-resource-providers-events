@@ -2,7 +2,6 @@ package software.amazon.events.rule;
 
 import org.apache.commons.collections4.CollectionUtils;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.ProgressEvent;
@@ -24,78 +23,56 @@ public class UpdateHandler extends BaseHandlerStd {
         final ResourceModel resourceModel = request.getDesiredResourceState();
         final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
 
+        // Create lists of ids
+        ArrayList<String> existingTargetIds = new ArrayList<>();
+        ArrayList<String> modelTargetIds = new ArrayList<>();
+        ArrayList<String> targetIdsToDelete = new ArrayList<>();
+
+        // Build the list of Targets ids that already exist
+        if (request.getPreviousResourceState().getTargets() != null) {
+            for (software.amazon.events.rule.Target target : request.getPreviousResourceState().getTargets()) {
+                existingTargetIds.add(target.getId());
+            }
+        }
+
+        // Build the list of Targets ids that should exist after update
+        if (request.getDesiredResourceState().getTargets() != null) {
+            for (software.amazon.events.rule.Target target : request.getDesiredResourceState().getTargets()) {
+                modelTargetIds.add(target.getId());
+            }
+        }
+
+        // Subtract model target ids from existing target ids to get the list of Targets to delete
+        targetIdsToDelete.addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
+
         return ProgressEvent.progress(resourceModel, callbackContext)
 
-            // STEP 1 [check if resource already exists]
+            // STEP 1 [update the rule]putTargetsRequest
             .then(progress ->
-                proxy.initiate("AWS-Events-Rule::Update::PreUpdateCheck", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest((model) -> Translator.translateToDescribeRuleRequest(compositePID))
-                    .makeServiceCall((awsRequest, client) -> describeRule(awsRequest, client, logger, request.getStackId()))
+                proxy.initiate("AWS-Events-Rule::Update::Rule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, compositePID))
+                    .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, compositePID, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> {
-                        progress.getResourceModel().setArn(awsResponse.arn());
+                        progress.getResourceModel().setArn(awsResponse.ruleArn());
                         progress.getResourceModel().setId(compositePID.getPid());
                         return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
                     })
             )
 
-            // STEP 2 [update the rule]putTargetsRequest
-            .then(progress ->
-                proxy.initiate("AWS-Events-Rule::Update::Rule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags(), compositePID))
-                    .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, compositePID, logger, request.getStackId()))
+            // STEP 2 [delete extra targets]
+            .then(progress -> targetIdsToDelete.size() == 0 ?
+                        progress :
+                        proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
+                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(compositePID, targetIdsToDelete))
+                    .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId()))
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, compositePID, callbackContext, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .progress()
             )
 
-            // STEP 3 [get list of existing targets]
-            .then(progress ->
-                proxy.initiate("AWS-Events-Rule::Update::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest((model) -> Translator.translateToListTargetsByRuleRequest(compositePID))
-                    .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
-                    .handleError(this::handleError)
-                    .done(awsResponse -> {
-                        // Record the list of targets to be deleted.
-
-                        // Create lists of ids
-                        ArrayList<String> existingTargetIds = new ArrayList<>();
-                        ArrayList<String> modelTargetIds = new ArrayList<>();
-
-                        // Build the list of Targets ids that already exist
-                        if (awsResponse.hasTargets()) {
-                            for (Target target : awsResponse.targets()) {
-                                existingTargetIds.add(target.id());
-                            }
-                        }
-
-                        // Build the list of Targets ids that should exist after update
-                        if (progress.getResourceModel().getTargets() != null) {
-                            for (Target target : Translator.translateToPutTargetsRequest(progress.getResourceModel(), compositePID).targets()) {
-                                modelTargetIds.add(target.id());
-                            }
-                        }
-
-                        // Subtract model target ids from existing target ids to get the list of Targets to delete
-                        callbackContext.setTargetIdsToDelete(new ArrayList<>());
-                        callbackContext.getTargetIdsToDelete().addAll(CollectionUtils.subtract(existingTargetIds, modelTargetIds));
-
-                        return ProgressEvent.progress(request.getDesiredResourceState(), callbackContext);
-                    })
-            )
-
-            // STEP 4 [delete extra targets]
-            .then(progress -> callbackContext.getTargetIdsToDelete() == null || callbackContext.getTargetIdsToDelete().size() == 0 ?
-                        progress :
-                        proxy.initiate("AWS-Events-Rule::Update::DeleteTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToRemoveTargetsRequest(compositePID, callbackContext.getTargetIdsToDelete()))
-                    .makeServiceCall((awsRequest, client) -> removeTargets(awsRequest, client, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
-                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizeRemoveTargets(awsResponse, client, compositePID, callbackContext, logger, request.getStackId(), callbackContext.getTargetIdsToDelete()))
-                    .handleError(this::handleError)
-                    .done(awsResponse -> delayedProgress(progress, 30, 1))
-            )
-
-            // STEP 5 [put targets]
+            // STEP 3 [put targets]
             .then(progress -> progress.getResourceModel().getTargets() == null || progress.getResourceModel().getTargets().size() == 0 ?
                         progress :
                         proxy.initiate("AWS-Events-Rule::Update::Targets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
@@ -106,7 +83,7 @@ public class UpdateHandler extends BaseHandlerStd {
                     .done(awsResponse -> delayedProgress(progress, 30, 2))
             )
 
-            // STEP 6 [describe call/chain to return the resource model]
+            // STEP 4 [describe call/chain to return the resource model]
             .then(progress -> ProgressEvent.defaultSuccessHandler(progress.getResourceModel()));
     }
 

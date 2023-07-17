@@ -1,7 +1,11 @@
 package software.amazon.events.rule;
 
+import com.amazonaws.AmazonServiceException;
+import com.fasterxml.jackson.databind.ser.Serializers;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.*;
+import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
+import software.amazon.awssdk.services.cloudwatchevents.model.ResourceNotFoundException;
+import software.amazon.cloudformation.exceptions.CfnThrottlingException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.Logger;
@@ -76,12 +80,13 @@ public class CreateHandler extends BaseHandlerStd {
             // STEP 2 [create/stabilize rule]
             .then(progress ->
                 proxy.initiate("AWS-Events-Rule::CreateRule", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, request.getDesiredResourceTags(), compositePID))
+                    .translateToServiceRequest(model -> Translator.translateToPutRuleRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putRule(awsRequest, client, logger, request.getStackId()))
                     .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutRule(client, compositePID, logger, request.getStackId()))
                     .handleError(this::handleError)
                     .done(awsResponse -> {
                         progress.getResourceModel().setArn(awsResponse.ruleArn());
+                        callbackContext.setRuleCreated(true);
 
                         return delayedProgress(progress, 30, 1);
                     })
@@ -93,7 +98,15 @@ public class CreateHandler extends BaseHandlerStd {
                             proxy.initiate("AWS-Events-Rule::CreateTargets", proxyClient,progress.getResourceModel(), progress.getCallbackContext())
                     .translateToServiceRequest((model) -> Translator.translateToPutTargetsRequest(model, compositePID))
                     .makeServiceCall((awsRequest, client) -> putTargets(awsRequest, client, logger, request.getStackId()))
-                    .handleError(this::handleError)
+                    .stabilize((awsRequest, awsResponse, client, model, context) -> stabilizePutTargets(awsResponse, client, model, context, logger, request.getStackId(), compositePID))
+                    .handleError((req, e, proxyC, model, context) -> {
+
+                        if (BaseHandlerStd.ERROR_CODE_THROTTLING_EXCEPTION.equals(BaseHandlerStd.getErrorCode(e)))
+                        {
+                            return ProgressEvent.defaultInProgressHandler(context, 5, model);
+                        }
+                        return handleError(req, e, proxyC, model, context);
+                    })
                     .done(awsResponse -> delayedProgress(progress, 30, 2))
                 )
 

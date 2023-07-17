@@ -1,11 +1,10 @@
 package software.amazon.events.rule;
 
-import software.amazon.awssdk.services.cloudwatchevents.model.ListTargetsByRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
 import software.amazon.cloudformation.proxy.StdCallbackContext;
 
-import java.util.ArrayList;
+import java.util.Collection;
 
 @lombok.Getter
 @lombok.Setter
@@ -15,11 +14,11 @@ public class CallbackContext extends StdCallbackContext {
 
     private int retryAttemptsForPutTargets;
     private int retryAttemptsForRemoveTargets;
-    private ListTargetsByRuleResponse listTargetsByRuleResponse;
     private PutTargetsResponse putTargetsResponse;
     private RemoveTargetsResponse removeTargetsResponse;
     private boolean ruleExists;
-    private ArrayList<String> targetIdsToDelete;
+    private boolean ruleCreated = false;
     private ResourceModel.ResourceModelBuilder resourceModelBuilder;
     private int completedPropagationDelays;
+    private Collection<String> targetIds;
 }

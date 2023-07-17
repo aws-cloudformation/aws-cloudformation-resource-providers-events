@@ -1,33 +1,30 @@
 package software.amazon.events.rule;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
+
+import com.amazonaws.AmazonServiceException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.params.provider.ValueSource;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.*;
-import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
-import software.amazon.events.rule.ResourceModel.ResourceModelBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -55,6 +52,7 @@ public class CreateHandlerTest extends AbstractTestBase {
 
     @BeforeEach
     public void setup() {
+        System.setProperty("aws.region", "us-west-2");
         proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
         sdkClient = mock(CloudWatchEventsClient.class);
         proxyClient = MOCK_PROXY(proxy, sdkClient);
@@ -121,14 +119,6 @@ public class CreateHandlerTest extends AbstractTestBase {
          * describeRule
          * putTargets
          */
-
-        Collection<Target> responseTargets = new ArrayList<>();
-        for (software.amazon.events.rule.Target target : model.getTargets()) {
-            responseTargets.add(Target.builder()
-                    .id(target.getId())
-                    .arn(target.getArn())
-                    .build());
-        }
 
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .name(model.getName())
@@ -214,14 +204,6 @@ public class CreateHandlerTest extends AbstractTestBase {
          * describeRule
          * putTargets
          */
-
-        Collection<Target> responseTargets = new ArrayList<>();
-        for (software.amazon.events.rule.Target target : model.getTargets()) {
-            responseTargets.add(Target.builder()
-                    .id(target.getId())
-                    .arn(target.getArn())
-                    .build());
-        }
 
         final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
                 .name(model.getName())
@@ -359,5 +341,90 @@ public class CreateHandlerTest extends AbstractTestBase {
         assertThat(response.getResourceModels()).isNull();
         assertThat(response.getMessage()).isEqualTo(EVENT_RULE_NAME + " already exists");
         assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.AlreadyExists);
+    }
+
+    @Test
+    public void handleRequest_CreateRuleTargetThrottle() {
+        final CreateHandler handler = new CreateHandler();
+
+        // MODEL
+
+        Set<software.amazon.events.rule.Target> targets = new HashSet<>();
+
+        targets.add(software.amazon.events.rule.Target.builder()
+                .id("TestLambdaFunctionId")
+                .arn("arn:aws:lambda:us-west-2:123456789123:function:TestLambdaFunctionId")
+                .build());
+
+        final ResourceModel model = ResourceModel.builder()
+                .name(EVENT_RULE_NAME)
+                .description("TestDescription")
+                .scheduleExpression("rate(1 day)")
+                .state("ENABLED")
+                .targets(targets)
+                .build();
+
+        // MOCK
+
+        /*
+         * describeRule
+         * putRule
+         * describeRule
+         * putTargets
+         */
+
+        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
+                .name(model.getName())
+                .description(model.getDescription())
+                .scheduleExpression(model.getScheduleExpression())
+                .state(model.getState())
+                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
+                .build();
+
+        final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
+                .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
+                .build();
+
+        final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
+                .build();
+
+        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
+                .thenThrow(ResourceNotFoundException.class)
+                .thenThrow(ResourceNotFoundException.class)
+                .thenReturn(describeRuleResponse);
+
+        when(proxyClient.client().putRule(any(PutRuleRequest.class)))
+                .thenReturn(putRuleResponse);
+
+        when(proxyClient.client().putTargets(any(PutTargetsRequest.class)))
+                .thenThrow(AwsServiceException.builder().awsErrorDetails(AwsErrorDetails.builder().errorCode("ThrottlingException").build()).build())
+                .thenReturn(putTargetsResponse);
+
+        // RUN
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .awsAccountId(SOURCE_ACCOUNT_ID)
+                .desiredResourceState(model)
+                .build();
+        request.getDesiredResourceState().setArn(EVENT_RULE_ARN_DEFAULT_BUS);
+
+        CallbackContext context = new CallbackContext();
+        ProgressEvent<ResourceModel, CallbackContext> response;
+
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
+        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
+
+        // ASSERT
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isNull();
+        assertThat(response.getErrorCode()).isNull();
     }
 }

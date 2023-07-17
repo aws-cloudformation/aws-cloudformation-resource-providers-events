@@ -1,32 +1,38 @@
 package software.amazon.events.rule;
 
-import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesResponse;
+import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
-import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.OperationStatus;
+import software.amazon.cloudformation.proxy.ProgressEvent;
+import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 
-public class ListHandler extends BaseHandler<CallbackContext> {
+public class ListHandler extends BaseHandlerStd {
 
     @Override
     public ProgressEvent<ResourceModel, CallbackContext> handleRequest(
         final AmazonWebServicesClientProxy proxy,
         final ResourceHandlerRequest<ResourceModel> request,
         final CallbackContext callbackContext,
+        final ProxyClient<CloudWatchEventsClient> proxyClient,
         final Logger logger) {
 
-        final ListRulesRequest awsRequest = Translator.translateToListRulesRequest(request.getNextToken());
+        this.logger = logger;
 
-        ListRulesResponse awsResponse = proxy.injectCredentialsAndInvokeV2(awsRequest, ClientBuilder.getClient()::listRules);
+        logger.log("List handler starting with model: " + request.getDesiredResourceState());
+        logger.log("Stack ID: " + request.getStackId());
 
-        String nextToken = awsResponse.nextToken();
+        ResourceModel model = request.getDesiredResourceState();
 
-        return ProgressEvent.<ResourceModel, CallbackContext>builder()
-            .resourceModels(Translator.translateFromListRulesResponse(awsResponse))
-            .nextToken(nextToken)
-            .status(OperationStatus.SUCCESS)
-            .build();
+        return proxy.initiate("AWS-Events-Rule::List", proxyClient, model, callbackContext)
+                .translateToServiceRequest(r -> Translator.translateToListRulesRequest(request.getNextToken()))
+                .makeServiceCall((awsRequest, client) -> listRules(awsRequest, client, logger, request.getStackId()))
+                .handleError(this::handleError)
+                .done((awsRequest, awsResponse, client, resourceModel, context) -> ProgressEvent.<ResourceModel, CallbackContext>builder()
+                        .resourceModels(Translator.translateFromListRulesResponse(awsResponse))
+                        .nextToken(awsResponse.nextToken())
+                        .status(OperationStatus.SUCCESS)
+                        .build());
     }
 }
