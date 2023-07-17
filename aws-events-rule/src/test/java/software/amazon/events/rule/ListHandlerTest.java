@@ -23,7 +23,14 @@ public class ListHandler extends BaseHandlerStd {
         logger.log("List handler starting with model: " + request.getDesiredResourceState());
         logger.log("Stack ID: " + request.getStackId());
 
-        ResourceModel model = request.getDesiredResourceState();
+    @BeforeEach
+    public void setup() {
+        System.setProperty("aws.region", "us-west-2");
+
+        proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
+        sdkClient = mock(CloudWatchEventsClient.class);
+        proxyClient = MOCK_PROXY(proxy, sdkClient);
+    }
 
         return proxy.initiate("AWS-Events-Rule::List", proxyClient, model, callbackContext)
                 .translateToServiceRequest(r -> Translator.translateToListRulesRequest(request.getNextToken()))

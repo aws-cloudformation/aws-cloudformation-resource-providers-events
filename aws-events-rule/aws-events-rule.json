@@ -11,7 +11,10 @@
       "description": "The name or ARN of the event bus associated with the rule. If you omit this, the default event bus is used."
     },
     "EventPattern": {
-      "type": [ "string", "object" ],
+      "type": [
+        "string",
+        "object"
+      ],
       "description": "The event pattern of the rule. For more information, see Events and Event Patterns in the Amazon EventBridge User Guide."
     },
     "ScheduleExpression": {
