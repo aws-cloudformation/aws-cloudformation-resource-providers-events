@@ -1,5 +1,6 @@
 package software.amazon.events.rule;
 
+import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.Rule;
@@ -7,6 +8,7 @@ import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
+import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,24 +16,32 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
-public class ListHandlerTest {
+public class ListHandlerTest extends AbstractTestBase {
 
     @Mock
     private AmazonWebServicesClientProxy proxy;
 
     @Mock
-    private Logger logger;
+    private ProxyClient<CloudWatchEventsClient> proxyClient;
+
+    @Mock
+    CloudWatchEventsClient sdkClient;
 
     @BeforeEach
     public void setup() {
-        proxy = mock(AmazonWebServicesClientProxy.class);
-        logger = mock(Logger.class);
+        System.setProperty("aws.region", "us-west-2");
+    
+        proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
+        sdkClient = mock(CloudWatchEventsClient.class);
+        proxyClient = MOCK_PROXY(proxy, sdkClient);
     }
 
     @Test
@@ -51,7 +61,7 @@ public class ListHandlerTest {
                         .build())
                 .build();
 
-        when(proxy.injectCredentialsAndInvokeV2(any(ListRulesRequest.class), any()))
+        when(proxyClient.client().listRules(any(ListRulesRequest.class)))
                 .thenReturn(listRulesResponse);
 
         // RUN
@@ -60,8 +70,9 @@ public class ListHandlerTest {
             .desiredResourceState(model)
             .build();
 
+        CallbackContext context = new CallbackContext();
         final ProgressEvent<ResourceModel, CallbackContext> response =
-            handler.handleRequest(proxy, request, null, logger);
+            handler.handleRequest(proxy, request, context, proxyClient, logger);
 
         // ASSERT
 

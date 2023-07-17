@@ -51,6 +51,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
 
     @BeforeEach
     public void setup() {
+        System.setProperty("aws.region", "us-west-2");
         proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
         sdkClient = mock(CloudWatchEventsClient.class);
         proxyClient = MOCK_PROXY(proxy, sdkClient);
@@ -146,6 +147,12 @@ public class DeleteHandlerTest extends AbstractTestBase {
                 .arn("ToDeleteArn")
                 .build());
 
+        Set<software.amazon.awssdk.services.cloudwatchevents.model.Target> sdkTargets = new HashSet<>();
+        sdkTargets.add(software.amazon.awssdk.services.cloudwatchevents.model.Target.builder()
+                .id("ToDeleteId")
+                .arn("ToDeleteArn")
+                .build());
+
         // MODEL
         final ResourceModel model = ResourceModel.builder()
                 .arn(EVENT_RULE_ARN_DEFAULT_BUS)
@@ -183,6 +190,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .stackId("STACK_ID")
                 .build();
 
         CallbackContext context = new CallbackContext();
@@ -275,6 +283,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .awsAccountId(SOURCE_ACCOUNT_ID)
                 .desiredResourceState(model)
+                .stackId("STACK_ID")
                 .build();
 
         final ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger);

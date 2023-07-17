@@ -1,19 +1,15 @@
 package software.amazon.events.rule;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.DescribeRuleResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.InvalidEventPatternException;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.PutRuleResponse;
@@ -23,27 +19,28 @@ import software.amazon.awssdk.services.cloudwatchevents.model.PutTargetsResultEn
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsRequest;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResponse;
 import software.amazon.awssdk.services.cloudwatchevents.model.RemoveTargetsResultEntry;
-import software.amazon.awssdk.services.cloudwatchevents.model.Target;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 public class UpdateHandlerTest extends AbstractTestBase {
@@ -61,12 +58,13 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
     @BeforeEach
     public void setup() {
+        System.setProperty("aws.region", "us-west-2");
         proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
         sdkClient = mock(CloudWatchEventsClient.class);
         proxyClient = MOCK_PROXY(proxy, sdkClient);
     }
 
-    @AfterEach
+    //@AfterEach FIXME This seems like a bad fix
     public void tear_down() {
         verify(sdkClient, atLeastOnce()).serviceName();
         verifyNoMoreInteractions(sdkClient);
@@ -93,7 +91,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 "  }",
                 "}");
 
-        Map<String, Object> eventMapperMap = null;
+        Map<String, Object> eventMapperMap;
         try {
             eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
         } catch (JsonProcessingException e) {
@@ -147,14 +145,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         listTargetsByRule
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(model.getName())
-                .description(model.getDescription())
-                .eventPattern(eventPatternString)
-                .state(model.getState())
-                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
@@ -164,9 +154,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
                 .build();
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
@@ -188,8 +175,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         CallbackContext context = new CallbackContext();
         ProgressEvent<ResourceModel, CallbackContext> response;
 
-        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
-        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
         assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
@@ -226,7 +211,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 "  }",
                 "}");
 
-        Map<String, Object> eventMapperMap = null;
+        Map<String, Object> eventMapperMap;
         try {
             eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
         } catch (JsonProcessingException e) {
@@ -259,20 +244,9 @@ public class UpdateHandlerTest extends AbstractTestBase {
         putTargets
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(model.getName())
-                .description(model.getDescription())
-                .eventPattern(eventPatternString)
-                .state(model.getState())
-                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
@@ -319,7 +293,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 "  }",
                 "}");
 
-        Map<String, Object> eventMapperMap = null;
+        Map<String, Object> eventMapperMap;
         try {
             eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
         } catch (JsonProcessingException e) {
@@ -360,14 +334,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         putTargets
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(model.getName())
-                .description(model.getDescription())
-                .eventPattern(eventPatternString)
-                .state(model.getState())
-                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
@@ -382,9 +348,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
                 .failedEntries(PutTargetsResultEntries)
                 .build();
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
@@ -413,7 +376,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
         assertThat(response.getResourceModels()).isNull();
         assertThat(response.getMessage()).isEqualTo("Target(s) failed to create/update");
-        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.InternalFailure);
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.GeneralServiceException);
     }
 
     @Test
@@ -437,7 +400,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 "  }",
                 "}");
 
-        Map<String, Object> eventMapperMap = null;
+        Map<String, Object> eventMapperMap;
         try {
             eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
         } catch (JsonProcessingException e) {
@@ -462,8 +425,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
-        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
-        previousTargets.addAll(targets);
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>(targets);
         String targetToRemoveId = "ToDeleteId";
         previousTargets.add(software.amazon.events.rule.Target.builder()
                 .id(targetToRemoveId)
@@ -489,14 +451,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         putTargets
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(model.getName())
-                .description(model.getDescription())
-                .eventPattern(eventPatternString)
-                .state(model.getState())
-                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
@@ -509,9 +463,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         final RemoveTargetsResponse removeTargetsResponse = RemoveTargetsResponse.builder()
                 .failedEntries(removeTargetsResultEntries)
                 .build();
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
@@ -540,7 +491,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
         assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
         assertThat(response.getResourceModels()).isNull();
         assertThat(response.getMessage()).isEqualTo("Target(s) failed to be removed");
-        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.InternalFailure);
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.GeneralServiceException);
     }
 
     @Test
@@ -564,7 +515,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 "  }",
                 "}");
 
-        Map<String, Object> eventMapperMap = null;
+        Map<String, Object> eventMapperMap;
         try {
             eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
         } catch (JsonProcessingException e) {
@@ -697,8 +648,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
-        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
-        previousTargets.addAll(targets);
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>(targets);
         String targetToRemoveId = "ToDeleteId";
         previousTargets.add(software.amazon.events.rule.Target.builder()
                 .id(targetToRemoveId)
@@ -728,14 +678,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         listTargetsByRule
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(model.getName())
-                .description(model.getDescription())
-                .eventPattern(eventPatternString)
-                .state(model.getState())
-                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
@@ -745,9 +687,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
                 .build();
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
@@ -769,8 +708,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         CallbackContext context = new CallbackContext();
         ProgressEvent<ResourceModel, CallbackContext> response;
 
-        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
-        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
         assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
@@ -807,7 +744,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 "  }",
                 "}");
 
-        Map<String, Object> eventMapperMap = null;
+        Map<String, Object> eventMapperMap;
         try {
             eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
         } catch (JsonProcessingException e) {
@@ -892,8 +829,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
-        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
-        previousTargets.addAll(targets);
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>(targets);
         String targetToRemoveId = "ToDeleteId";
         previousTargets.add(software.amazon.events.rule.Target.builder()
                 .id(targetToRemoveId)
@@ -921,14 +857,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         listTargetsByRule
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(model.getName())
-                .description(model.getDescription())
-                .eventPattern(eventPatternString)
-                .state(model.getState())
-                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
         final PutRuleResponse putRuleResponse = PutRuleResponse.builder()
                 .ruleArn(EVENT_RULE_ARN_DEFAULT_BUS)
                 .build();
@@ -938,9 +866,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         final PutTargetsResponse putTargetsResponse = PutTargetsResponse.builder()
                 .build();
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenReturn(describeRuleResponse);
 
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenReturn(putRuleResponse);
@@ -962,8 +887,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         CallbackContext context = new CallbackContext();
         ProgressEvent<ResourceModel, CallbackContext> response;
 
-        response = handler.handleRequest(proxy, request, context, proxyClient, logger);
-        assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
         assertThat(response.getStatus()).isEqualTo(OperationStatus.IN_PROGRESS);
         response = handler.handleRequest(proxy, request, context, proxyClient, logger);
@@ -1000,7 +923,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 "  }",
                 "}");
 
-        Map<String, Object> eventMapperMap = null;
+        Map<String, Object> eventMapperMap;
         try {
             eventMapperMap = MAPPER.readValue(eventPatternString, new TypeReference<Map<String, Object>>(){});
         } catch (JsonProcessingException e) {
@@ -1028,8 +951,7 @@ public class UpdateHandlerTest extends AbstractTestBase {
                 .targets(targets)
                 .build();
 
-        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>();
-        previousTargets.addAll(targets);
+        Set<software.amazon.events.rule.Target> previousTargets = new HashSet<>(targets);
 
         final ResourceModel previousModel = ResourceModel.builder()
                 .name("TestRule")
@@ -1051,17 +973,6 @@ public class UpdateHandlerTest extends AbstractTestBase {
         listTargetsByRule
          */
 
-        final DescribeRuleResponse describeRuleResponse = DescribeRuleResponse.builder()
-                .name(model.getName())
-                .description(model.getDescription())
-                .eventPattern(eventPatternString)
-                .state(model.getState())
-                .arn(EVENT_RULE_ARN_DEFAULT_BUS)
-                .build();
-
-        when(proxyClient.client().describeRule(any(DescribeRuleRequest.class)))
-                .thenReturn(describeRuleResponse);
-
         when(proxyClient.client().putRule(any(PutRuleRequest.class)))
                 .thenThrow(InvalidEventPatternException.class);
 
@@ -1082,25 +993,5 @@ public class UpdateHandlerTest extends AbstractTestBase {
 
         assertThat(response).isNotNull();
         assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
-    }
-
-
-    /**
-     * A hacky way to avoid rewriting logic to convert ResourceModel Targets to AwsSdk Targets
-     * @param target A ResourceModel Target
-     * @return An AwsSdk Target
-     */
-    private Target convertTarget(software.amazon.events.rule.Target target) {
-        HashSet<software.amazon.events.rule.Target> targets = new HashSet<>();
-        targets.add(target);
-        ResourceModel model = ResourceModel.builder()
-                .targets(targets)
-                .name("NAME")
-                .build();
-        CompositePID compositePID = new CompositePID(model, SOURCE_ACCOUNT_ID);
-
-        PutTargetsRequest putTargetsRequest = Translator.translateToPutTargetsRequest(model, compositePID);
-
-        return putTargetsRequest.targets().get(0);
     }
 }

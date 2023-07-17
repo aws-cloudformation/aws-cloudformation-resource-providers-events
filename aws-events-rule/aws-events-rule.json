@@ -11,7 +11,7 @@
       "description": "The name or ARN of the event bus associated with the rule. If you omit this, the default event bus is used."
     },
     "EventPattern": {
-      "type": "object",
+      "type": [ "string", "object" ],
       "description": "The event pattern of the rule. For more information, see Events and Event Patterns in the Amazon EventBridge User Guide."
     },
     "ScheduleExpression": {
@@ -55,12 +55,16 @@
   "handlers": {
     "create": {
       "permissions": [
+        "iam:PassRole",
+        "events:DescribeRule",
         "events:PutRule",
         "events:PutTargets"
       ]
     },
     "delete": {
       "permissions": [
+        "iam:PassRole",
+        "events:DescribeRule",
         "events:DeleteRule",
         "events:RemoveTargets",
         "events:ListTargetsByRule"
@@ -73,12 +77,15 @@
     },
     "read": {
       "permissions": [
+        "iam:PassRole",
         "events:DescribeRule",
         "events:ListTargetsByRule"
       ]
     },
     "update": {
       "permissions": [
+        "iam:PassRole",
+        "events:DescribeRule",
         "events:PutRule",
         "events:RemoveTargets",
         "events:PutTargets"

@@ -17,6 +17,7 @@ public class CallbackContext extends StdCallbackContext {
     private PutTargetsResponse putTargetsResponse;
     private RemoveTargetsResponse removeTargetsResponse;
     private boolean ruleExists;
+    private boolean ruleCreated = false;
     private ResourceModel.ResourceModelBuilder resourceModelBuilder;
     private int completedPropagationDelays;
     private Collection<String> targetIds;
