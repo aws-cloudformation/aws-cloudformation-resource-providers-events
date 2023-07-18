@@ -51,6 +51,7 @@ public class DeleteHandlerTest extends AbstractTestBase {
 
     @BeforeEach
     public void setup() {
+        System.setProperty("aws.region", "us-west-2");
         proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
         sdkClient = mock(CloudWatchEventsClient.class);
         proxyClient = MOCK_PROXY(proxy, sdkClient);
@@ -142,6 +143,12 @@ public class DeleteHandlerTest extends AbstractTestBase {
         Set<software.amazon.events.rule.Target> targets = new HashSet<>();
 
         targets.add(software.amazon.events.rule.Target.builder()
+                .id("ToDeleteId")
+                .arn("ToDeleteArn")
+                .build());
+
+        Set<software.amazon.awssdk.services.cloudwatchevents.model.Target> sdkTargets = new HashSet<>();
+        sdkTargets.add(software.amazon.awssdk.services.cloudwatchevents.model.Target.builder()
                 .id("ToDeleteId")
                 .arn("ToDeleteArn")
                 .build());

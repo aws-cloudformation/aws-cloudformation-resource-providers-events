@@ -37,6 +37,7 @@ Resources:
                 - "events:PutRule"
                 - "events:PutTargets"
                 - "events:RemoveTargets"
+                - "iam:PassRole"
                 Resource: "*"
 Outputs:
   ExecutionRoleArn:

@@ -1,86 +1,45 @@
 package software.amazon.events.rule;
 
 import software.amazon.awssdk.services.cloudwatchevents.CloudWatchEventsClient;
-import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesRequest;
-import software.amazon.awssdk.services.cloudwatchevents.model.ListRulesResponse;
-import software.amazon.awssdk.services.cloudwatchevents.model.Rule;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
 import software.amazon.cloudformation.proxy.Logger;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Duration;
+public class ListHandler extends BaseHandlerStd {
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.any;
+    @Override
+    public ProgressEvent<ResourceModel, CallbackContext> handleRequest(
+        final AmazonWebServicesClientProxy proxy,
+        final ResourceHandlerRequest<ResourceModel> request,
+        final CallbackContext callbackContext,
+        final ProxyClient<CloudWatchEventsClient> proxyClient,
+        final Logger logger) {
 
-@ExtendWith(MockitoExtension.class)
-public class ListHandlerTest extends AbstractTestBase {
+        this.logger = logger;
 
-    @Mock
-    private AmazonWebServicesClientProxy proxy;
-
-    @Mock
-    private ProxyClient<CloudWatchEventsClient> proxyClient;
-
-    @Mock
-    CloudWatchEventsClient sdkClient;
+        logger.log("List handler starting with model: " + request.getDesiredResourceState());
+        logger.log("Stack ID: " + request.getStackId());
 
     @BeforeEach
     public void setup() {
+        System.setProperty("aws.region", "us-west-2");
+
         proxy = new AmazonWebServicesClientProxy(logger, MOCK_CREDENTIALS, () -> Duration.ofSeconds(600).toMillis());
         sdkClient = mock(CloudWatchEventsClient.class);
         proxyClient = MOCK_PROXY(proxy, sdkClient);
     }
 
-    @Test
-    public void handleRequest_SimpleSuccess() {
-        final ListHandler handler = new ListHandler();
-
-        // MODEL
-
-        final ResourceModel model = ResourceModel.builder().build();
-
-        // MOCK
-
-        final ListRulesResponse listRulesResponse = ListRulesResponse.builder()
-                .rules(Rule.builder()
-                        .name("RULE_NAME")
-                        .eventBusName("EVENT_BUS_NAME")
-                        .build())
-                .build();
-
-        when(proxyClient.client().listRules(any(ListRulesRequest.class)))
-                .thenReturn(listRulesResponse);
-
-        // RUN
-
-        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
-            .desiredResourceState(model)
-            .build();
-
-        CallbackContext context = new CallbackContext();
-        final ProgressEvent<ResourceModel, CallbackContext> response =
-            handler.handleRequest(proxy, request, context, proxyClient, logger);
-
-        // ASSERT
-
-        assertThat(response).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(OperationStatus.SUCCESS);
-        assertThat(response.getCallbackContext()).isNull();
-        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
-        assertThat(response.getResourceModel()).isNull();
-        assertThat(response.getResourceModels()).isNotNull();
-        assertThat(response.getMessage()).isNull();
-        assertThat(response.getErrorCode()).isNull();
+        return proxy.initiate("AWS-Events-Rule::List", proxyClient, model, callbackContext)
+                .translateToServiceRequest(r -> Translator.translateToListRulesRequest(request.getNextToken()))
+                .makeServiceCall((awsRequest, client) -> listRules(awsRequest, client, logger, request.getStackId()))
+                .handleError(this::handleError)
+                .done((awsRequest, awsResponse, client, resourceModel, context) -> ProgressEvent.<ResourceModel, CallbackContext>builder()
+                        .resourceModels(Translator.translateFromListRulesResponse(awsResponse))
+                        .nextToken(awsResponse.nextToken())
+                        .status(OperationStatus.SUCCESS)
+                        .build());
     }
 }

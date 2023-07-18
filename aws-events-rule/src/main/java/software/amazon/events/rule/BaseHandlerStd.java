@@ -408,23 +408,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         return progressEvent;
     }
 
-    /**
-     * Filters out access denied errors. This is used to maintain backwards compatibility.
-     * Features like tagging were added after the initial implementation of AWS::KMS::Key,
-     * and existing permissions may deny the use of these newer features.
-     */
-    protected ProgressEvent<ResourceModel, CallbackContext> softFailAccessDenied(
-            final Supplier<ProgressEvent<ResourceModel, CallbackContext>> eventSupplier,
-            final ResourceModel model,
-            final CallbackContext callbackContext) {
-        try {
-            return eventSupplier.get();
-        } catch (final CfnAccessDeniedException e) {
-            return ProgressEvent.progress(model, callbackContext);
-        }
-    }
-
-
     private CloudWatchEventsClient getCloudWatchEventsClient() {
         return cloudWatchEventsClient;
     }

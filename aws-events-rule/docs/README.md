@@ -13,7 +13,7 @@ To declare this entity in your AWS CloudFormation template, use the following sy
     "Type" : "AWS::Events::Rule",
     "Properties" : {
         "<a href="#eventbusname" title="EventBusName">EventBusName</a>" : <i>String</i>,
-        "<a href="#eventpattern" title="EventPattern">EventPattern</a>" : <i>Map</i>,
+        "<a href="#eventpattern" title="EventPattern">EventPattern</a>" : <i>String, Map</i>,
         "<a href="#scheduleexpression" title="ScheduleExpression">ScheduleExpression</a>" : <i>String</i>,
         "<a href="#description" title="Description">Description</a>" : <i>String</i>,
         "<a href="#state" title="State">State</a>" : <i>String</i>,
@@ -30,7 +30,7 @@ To declare this entity in your AWS CloudFormation template, use the following sy
 Type: AWS::Events::Rule
 Properties:
     <a href="#eventbusname" title="EventBusName">EventBusName</a>: <i>String</i>
-    <a href="#eventpattern" title="EventPattern">EventPattern</a>: <i>Map</i>
+    <a href="#eventpattern" title="EventPattern">EventPattern</a>: <i>String, Map</i>
     <a href="#scheduleexpression" title="ScheduleExpression">ScheduleExpression</a>: <i>String</i>
     <a href="#description" title="Description">Description</a>: <i>String</i>
     <a href="#state" title="State">State</a>: <i>String</i>
@@ -58,7 +58,7 @@ The event pattern of the rule. For more information, see Events and Event Patter
 
 _Required_: No
 
-_Type_: Map
+_Type_: String, Map
 
 _Update requires_: [No interruption](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-update-behaviors.html#update-no-interrupt)
 

@@ -25,13 +25,6 @@ public class DeleteHandler extends BaseHandlerStd {
         final ResourceModel resourceModel = request.getDesiredResourceState();
         final CompositePID compositePID = new CompositePID(resourceModel, request.getAwsAccountId());
 
-        if (resourceModel.getTargets() != null && resourceModel.getTargets().size() != 0) {
-            callbackContext.setTargetIds(extractTargetIds(resourceModel.getTargets()));
-        }
-        else {
-            callbackContext.setTargetIds(new ArrayList<>());
-        }
-
         return ProgressEvent.progress(resourceModel, callbackContext)
             // STEP 1 [check if resource exists]
             .then(progress ->
@@ -46,19 +39,30 @@ public class DeleteHandler extends BaseHandlerStd {
             )
 
             // STEP 2 [get targets]
-            .then(progress -> request.getStackId() != null ?
-                    progress :
-                // If CCAPI, get targets
-                softFailAccessDenied(() -> proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, progress.getResourceModel(), progress.getCallbackContext())
-                    .translateToServiceRequest((model ) -> Translator.translateToListTargetsByRuleRequest(compositePID))
-                    .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger, request.getStackId()))
-                    .handleError(this::handleError)
-                    .done(awsResponse -> {
-                        // Record the list of Targets
-                        callbackContext.setTargetIds(extractTargetIds(Translator.translateFromListTargetsByRuleResponse(awsResponse)));
-                        return ProgressEvent.progress(progress.getResourceModel(), callbackContext);
-                    }), request.getDesiredResourceState(), callbackContext)
-            )
+            .then(progress -> {
+                if (isCCAPI(request)) {
+                    return proxy.initiate("AWS-Events-Rule::ListTargets", proxyClient, progress.getResourceModel(),
+                                    progress.getCallbackContext())
+                            .translateToServiceRequest(
+                                    (model) -> Translator.translateToListTargetsByRuleRequest(compositePID))
+                            .makeServiceCall((awsRequest, client) -> listTargets(awsRequest, client, logger,
+                                    request.getStackId()))
+                            .handleError(this::handleError)
+                            .done(awsResponse -> {
+                                // Record the list of Targets
+                                callbackContext.setTargetIds(extractTargetIds(
+                                        Translator.translateFromListTargetsByRuleResponse(awsResponse)));
+                                return ProgressEvent.progress(progress.getResourceModel(), callbackContext);
+                            });
+                } else {
+                    if (resourceModel.getTargets() != null && resourceModel.getTargets().size() != 0) {
+                        callbackContext.setTargetIds(extractTargetIds(resourceModel.getTargets()));
+                    } else {
+                        callbackContext.setTargetIds(new ArrayList<>());
+                    }
+                    return ProgressEvent.progress(progress.getResourceModel(), callbackContext);
+                }
+            })
 
             // STEP 3 [delete targets]
             .then(progress -> callbackContext.getTargetIds().size() == 0 ?
@@ -82,6 +86,10 @@ public class DeleteHandler extends BaseHandlerStd {
 
             // STEP 5 [return the successful progress event without resource model]
             .then(progress -> ProgressEvent.defaultSuccessHandler(null));
+    }
+
+    private boolean isCCAPI(final ResourceHandlerRequest<ResourceModel> request) {
+        return request.getStackId() == null;
     }
 
     private static Collection<String> extractTargetIds(Set<Target> targets)
