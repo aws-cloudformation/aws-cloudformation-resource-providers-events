@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.CreateApiDestinationRequest;
@@ -31,6 +32,7 @@ import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -252,6 +254,36 @@ public class CreateHandlerTest extends AbstractTestBase {
                 );
 
         assertThrows(CfnServiceLimitExceededException.class, () -> handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger));
+        verify(eventBridgeClient, times(1)).serviceName();
+    }
+
+    @Test
+    public void handleRequest_GenericValidationError_CommunicatesErrorDetail() {
+        final ResourceModel model = ResourceModel.builder()
+                .name(API_DESTINATION_NAME)
+                .build();
+
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+
+        final AwsServiceException genericValidationError = AwsServiceException.builder().awsErrorDetails(
+                AwsErrorDetails.builder()
+                        .errorMessage("Failed to create resource. Parameter foo is not valid.")
+                        .errorCode(BaseHandlerStd.VALIDATION_ERROR_CODE)
+                        .build()
+        ).build();
+
+        doThrow(genericValidationError)
+                .when(proxy)
+                .injectCredentialsAndInvokeV2(
+                        ArgumentMatchers.any(),
+                        ArgumentMatchers.any()
+                );
+
+        assertThatThrownBy(() -> handler.handleRequest(proxy, request, new CallbackContext(), proxyClient, logger))
+                .isInstanceOf(CfnInvalidRequestException.class)
+                .hasMessageContaining(genericValidationError.awsErrorDetails().errorMessage());
         verify(eventBridgeClient, times(1)).serviceName();
     }
 
