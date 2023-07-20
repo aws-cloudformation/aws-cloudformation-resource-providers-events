@@ -1,22 +1,10 @@
 package software.amazon.events.apidestination;
 
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
-import software.amazon.awssdk.services.eventbridge.model.ConcurrentModificationException;
-import software.amazon.awssdk.services.eventbridge.model.LimitExceededException;
-import software.amazon.awssdk.services.eventbridge.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.eventbridge.model.UpdateApiDestinationRequest;
 import software.amazon.awssdk.services.eventbridge.model.UpdateApiDestinationResponse;
-import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
-import software.amazon.cloudformation.exceptions.CfnNotFoundException;
 import software.amazon.cloudformation.exceptions.CfnNotUpdatableException;
-import software.amazon.cloudformation.exceptions.CfnResourceConflictException;
-import software.amazon.cloudformation.exceptions.CfnServiceLimitExceededException;
-import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
-import software.amazon.cloudformation.proxy.Logger;
-import software.amazon.cloudformation.proxy.ProgressEvent;
-import software.amazon.cloudformation.proxy.ProxyClient;
-import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.cloudformation.proxy.*;
 
 import java.util.Optional;
 
@@ -50,23 +38,12 @@ public class UpdateHandler extends BaseHandlerStd {
 
     private UpdateApiDestinationResponse updateResource(UpdateApiDestinationRequest awsRequest, ProxyClient<EventBridgeClient> proxyClient) {
         UpdateApiDestinationResponse awsResponse;
-        try {
-            awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::updateApiDestination);
-        } catch (final ConcurrentModificationException e) {
-            // There is a concurrent modification on a connection
-            throw new CfnResourceConflictException(e);
-        } catch (final ResourceNotFoundException e) {
-            // Provided connection arn does not exist
-            throw new CfnNotFoundException(e);
-        } catch (final LimitExceededException e) {
-            // Resource limit exceeded
-            throw new CfnServiceLimitExceededException(ResourceModel.TYPE_NAME, awsRequest.name(), e);
-        } catch (final AwsServiceException e) {
-            // general exception
-            throw new CfnGeneralServiceException(ResourceModel.TYPE_NAME, e);
-        }
 
+        awsResponse = translateAwsServiceException(awsRequest.name(),
+                () -> proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::updateApiDestination)
+        );
         logger.log(String.format("%s successfully updated.", ResourceModel.TYPE_NAME));
+
         return awsResponse;
     }
 

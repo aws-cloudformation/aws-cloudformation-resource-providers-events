@@ -2,6 +2,7 @@ package software.amazon.events.apidestination;
 
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
+import software.amazon.awssdk.services.eventbridge.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.eventbridge.model.LimitExceededException;
 import software.amazon.awssdk.services.eventbridge.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.eventbridge.model.ResourceNotFoundException;
@@ -42,11 +43,13 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             final ProxyClient<EventBridgeClient> proxyClient,
             final Logger logger);
 
-    protected <T> T translateAwsServiceException(Supplier<T> supplier, String operation) {
+    protected <T> T translateAwsServiceException(String operation, Supplier<T> supplier) {
         try {
             return supplier.get();
         } catch (final ResourceAlreadyExistsException e) {
             throw new CfnAlreadyExistsException(e);
+        } catch (final ConcurrentModificationException e) {
+            throw new CfnResourceConflictException(e);
         } catch (final ResourceNotFoundException e) {
             throw new CfnNotFoundException(e);
         } catch (final LimitExceededException e) {

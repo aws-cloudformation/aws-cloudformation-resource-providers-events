@@ -59,7 +59,9 @@ public class CreateHandler extends BaseHandlerStd {
     private CreateApiDestinationResponse createResource(CreateApiDestinationRequest awsRequest, ProxyClient<EventBridgeClient> proxyClient) {
         CreateApiDestinationResponse awsResponse;
 
-        awsResponse = translateAwsServiceException(() -> proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::createApiDestination), awsRequest.name());
+        awsResponse = translateAwsServiceException(awsRequest.name(),
+                () -> proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::createApiDestination)
+        );
         logger.log(String.format("%s successfully created.", ResourceModel.TYPE_NAME));
 
         return awsResponse;

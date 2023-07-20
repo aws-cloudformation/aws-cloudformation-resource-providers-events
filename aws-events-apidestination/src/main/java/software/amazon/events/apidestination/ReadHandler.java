@@ -1,17 +1,9 @@
 package software.amazon.events.apidestination;
 
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.eventbridge.EventBridgeClient;
 import software.amazon.awssdk.services.eventbridge.model.DescribeApiDestinationRequest;
 import software.amazon.awssdk.services.eventbridge.model.DescribeApiDestinationResponse;
-import software.amazon.awssdk.services.eventbridge.model.ResourceNotFoundException;
-import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
-import software.amazon.cloudformation.exceptions.CfnNotFoundException;
-import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
-import software.amazon.cloudformation.proxy.Logger;
-import software.amazon.cloudformation.proxy.ProgressEvent;
-import software.amazon.cloudformation.proxy.ProxyClient;
-import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.cloudformation.proxy.*;
 
 public class ReadHandler extends BaseHandlerStd {
     private Logger logger;
@@ -42,14 +34,12 @@ public class ReadHandler extends BaseHandlerStd {
 
     private DescribeApiDestinationResponse readResource(DescribeApiDestinationRequest awsRequest, ProxyClient<EventBridgeClient> proxyClient) {
         DescribeApiDestinationResponse awsResponse;
-        try {
-            awsResponse = proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeApiDestination);
-        } catch (final ResourceNotFoundException e) {
-            throw new CfnNotFoundException(ResourceModel.TYPE_NAME, awsRequest.name(), e);
-        } catch (final AwsServiceException e) {
-            throw new CfnGeneralServiceException(software.amazon.events.apidestination.ResourceModel.TYPE_NAME, e);
-        }
+
+        awsResponse = translateAwsServiceException(awsRequest.name(),
+                () -> proxyClient.injectCredentialsAndInvokeV2(awsRequest, proxyClient.client()::describeApiDestination)
+        );
         logger.log(String.format("%s has successfully been read.", ResourceModel.TYPE_NAME));
+
         return awsResponse;
     }
 }
