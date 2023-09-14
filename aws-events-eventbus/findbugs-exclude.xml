@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <Match>
+        <Class name="software.amazon.events.eventbus.HandlerWrapperExecutable" />
+    </Match>
+    <Match>
+        <Class name="In class software.amazon.events.eventbus.HandlerWrapper" />
+    </Match>
+    <Match>
+        <Field name="eventBridgeClient" />
+    </Match>
+    <Match>
+        <Field name="proxyClient" />
+    </Match>
+    <Match>
+        <Field name="MOCK_CREDENTIALS" />
+    </Match>
+    <Match>
+        <Field name="TEST_TAGS1" />
+    </Match>
+    <Match>
+        <Field name="TEST_TAGS2" />
+    </Match>
+    <Match>
+        <Field name="context" />
+    </Match>
+    <Match>
+        <Field name="handlerWrapper" />
+    </Match>
+    <Match>
+        <Field name="serializer" />
+    </Match>
+    <Match>
+        <Source name="~.*/generated-sources/.*.java"/>
+    </Match>
+</FindBugsFilter>

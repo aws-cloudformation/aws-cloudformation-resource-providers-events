@@ -1,0 +1,122 @@
+# This is a generated file - do not edit! See README on how to generate testAccountsConfig.yml
+testAccounts:
+  - regionName: af-south-1
+    iamRoleArn: arn:aws:iam::307042904846:role/CfnContractTests
+    s3BucketName: cfn-contract-test-307042904846
+    kmsKeyArn: arn:aws:kms:af-south-1:307042904846:key/539ca6c4-6f17-469a-b069-f9bbe0044dfc
+  - regionName: ap-east-1
+    iamRoleArn: arn:aws:iam::417527047072:role/CfnContractTests
+    s3BucketName: cfn-contract-test-417527047072
+    kmsKeyArn: arn:aws:kms:ap-east-1:417527047072:key/d8d05c2c-3e52-4815-bee1-bb493cb0bb50
+  - regionName: ap-northeast-1
+    iamRoleArn: arn:aws:iam::887577080403:role/CfnContractTests
+    s3BucketName: cfn-contract-test-887577080403
+    kmsKeyArn: arn:aws:kms:ap-northeast-1:887577080403:key/26a08697-52da-41e7-9501-d4c4b3ca206e
+  - regionName: ap-northeast-2
+    iamRoleArn: arn:aws:iam::334039033025:role/CfnContractTests
+    s3BucketName: cfn-contract-test-334039033025
+    kmsKeyArn: arn:aws:kms:ap-northeast-2:334039033025:key/d90fa368-9e88-4bb7-9c6e-583d395b8d19
+  - regionName: ap-northeast-3
+    iamRoleArn: arn:aws:iam::730441393695:role/CfnContractTests
+    s3BucketName: cfn-contract-test-730441393695
+    kmsKeyArn: arn:aws:kms:ap-northeast-3:730441393695:key/d8471f28-3a82-42c3-a771-8a6c42cfc982
+  - regionName: ap-south-1
+    iamRoleArn: arn:aws:iam::076109168760:role/CfnContractTests
+    s3BucketName: cfn-contract-test-076109168760
+    kmsKeyArn: arn:aws:kms:ap-south-1:076109168760:key/294740e8-63b8-4185-80c6-6cff591f30a0
+  - regionName: ap-south-2
+    iamRoleArn: arn:aws:iam::627523199635:role/CfnContractTests
+    s3BucketName: cfn-contract-test-627523199635
+    kmsKeyArn: arn:aws:kms:ap-south-2:627523199635:key/97ee51d0-91cf-4ad8-bf02-d7e2b41994d8
+  - regionName: ap-southeast-1
+    iamRoleArn: arn:aws:iam::616929341984:role/CfnContractTests
+    s3BucketName: cfn-contract-test-616929341984
+    kmsKeyArn: arn:aws:kms:ap-southeast-1:616929341984:key/192e7be9-60c8-4225-880b-4f6b5bf63374
+  - regionName: ap-southeast-2
+    iamRoleArn: arn:aws:iam::509651502529:role/CfnContractTests
+    s3BucketName: cfn-contract-test-509651502529
+    kmsKeyArn: arn:aws:kms:ap-southeast-2:509651502529:key/14f8181c-7bc8-47d4-9b2e-d50e2a8ffd43
+  - regionName: ap-southeast-3
+    iamRoleArn: arn:aws:iam::057893041956:role/CfnContractTests
+    s3BucketName: cfn-contract-test-057893041956
+    kmsKeyArn: arn:aws:kms:ap-southeast-3:057893041956:key/a996ed4f-0c4a-4e3d-82d6-34606ab2e2cd
+  - regionName: ap-southeast-4
+    iamRoleArn: arn:aws:iam::326487361931:role/CfnContractTests
+    s3BucketName: cfn-contract-test-326487361931
+    kmsKeyArn: arn:aws:kms:ap-southeast-4:326487361931:key/f94549f3-347c-4ff5-b4f4-182024fc6715
+  - regionName: ca-central-1
+    iamRoleArn: arn:aws:iam::985102208424:role/CfnContractTests
+    s3BucketName: cfn-contract-test-985102208424
+    kmsKeyArn: arn:aws:kms:ca-central-1:985102208424:key/3bc1f991-293a-4b86-9b87-563c6ba1cb8d
+  - regionName: cn-north-1
+    iamRoleArn: arn:aws-cn:iam::434104914144:role/CfnContractTests
+    s3BucketName: cfn-contract-test-434104914144
+    kmsKeyArn: arn:aws-cn:kms:cn-north-1:434104914144:key/68b8051b-fb5e-4636-87f3-cace05922d1c
+  - regionName: cn-northwest-1
+    iamRoleArn: arn:aws-cn:iam::442446944583:role/CfnContractTests
+    s3BucketName: cfn-contract-test-442446944583
+    kmsKeyArn: arn:aws-cn:kms:cn-northwest-1:442446944583:key/b56189dc-cab0-4e29-b0b8-bc860c872d0e
+  - regionName: eu-central-1
+    iamRoleArn: arn:aws:iam::722122155426:role/CfnContractTests
+    s3BucketName: cfn-contract-test-722122155426
+    kmsKeyArn: arn:aws:kms:eu-central-1:722122155426:key/d792b55b-4315-41ac-95df-fab6310459e6
+  - regionName: eu-central-2
+    iamRoleArn: arn:aws:iam::578555297688:role/CfnContractTests
+    s3BucketName: cfn-contract-test-578555297688
+    kmsKeyArn: arn:aws:kms:eu-central-2:578555297688:key/fa432096-5846-466a-b41b-c35f920ee6f2
+  - regionName: eu-north-1
+    iamRoleArn: arn:aws:iam::005059088433:role/CfnContractTests
+    s3BucketName: cfn-contract-test-005059088433
+    kmsKeyArn: arn:aws:kms:eu-north-1:005059088433:key/403b6352-4648-4e45-bf17-857ca8168ac5
+  - regionName: eu-south-1
+    iamRoleArn: arn:aws:iam::375192440144:role/CfnContractTests
+    s3BucketName: cfn-contract-test-375192440144
+    kmsKeyArn: arn:aws:kms:eu-south-1:375192440144:key/275f6f7d-d1fa-4b56-b2d1-ad13afe406e4
+  - regionName: eu-south-2
+    iamRoleArn: arn:aws:iam::922588172390:role/CfnContractTests
+    s3BucketName: cfn-contract-test-922588172390
+    kmsKeyArn: arn:aws:kms:eu-south-2:922588172390:key/b99eb07e-f8ba-4f21-8cbd-9927a841af62
+  - regionName: eu-west-1
+    iamRoleArn: arn:aws:iam::404929930276:role/CfnContractTests
+    s3BucketName: cfn-contract-test-404929930276
+    kmsKeyArn: arn:aws:kms:eu-west-1:404929930276:key/d7b6a93b-0ace-49ef-8eb4-6db4518f7e7c
+  - regionName: eu-west-2
+    iamRoleArn: arn:aws:iam::733369302651:role/CfnContractTests
+    s3BucketName: cfn-contract-test-733369302651
+    kmsKeyArn: arn:aws:kms:eu-west-2:733369302651:key/6001a72c-3681-45be-bee2-df4fcf265706
+  - regionName: eu-west-3
+    iamRoleArn: arn:aws:iam::164282127974:role/CfnContractTests
+    s3BucketName: cfn-contract-test-164282127974
+    kmsKeyArn: arn:aws:kms:eu-west-3:164282127974:key/a039c1da-db17-4939-924c-7febcf248164
+  - regionName: il-central-1
+    iamRoleArn: arn:aws:iam::801940705109:role/CfnContractTests
+    s3BucketName: cfn-contract-test-801940705109
+    kmsKeyArn: arn:aws:kms:il-central-1:801940705109:key/d3035b71-ae77-4c09-b4a4-3e355c7c26f9
+  - regionName: me-central-1
+    iamRoleArn: arn:aws:iam::067897675478:role/CfnContractTests
+    s3BucketName: cfn-contract-test-067897675478
+    kmsKeyArn: arn:aws:kms:me-central-1:067897675478:key/5bd1ab55-f608-4be5-b5b6-686a3b795183
+  - regionName: me-south-1
+    iamRoleArn: arn:aws:iam::251017616061:role/CfnContractTests
+    s3BucketName: cfn-contract-test-251017616061
+    kmsKeyArn: arn:aws:kms:me-south-1:251017616061:key/505b664b-40d7-4b40-bb58-77a360c0a5cf
+  - regionName: sa-east-1
+    iamRoleArn: arn:aws:iam::271154368589:role/CfnContractTests
+    s3BucketName: cfn-contract-test-271154368589
+    kmsKeyArn: arn:aws:kms:sa-east-1:271154368589:key/5f880c20-25b5-4564-bd70-2cc6e1e8d680
+  - regionName: us-east-1
+    iamRoleArn: arn:aws:iam::098059526382:role/CfnContractTests
+    s3BucketName: cfn-contract-test-098059526382
+    kmsKeyArn: arn:aws:kms:us-east-1:098059526382:key/c9174de2-1064-4746-b531-3fbc82d33781
+  - regionName: us-east-2
+    iamRoleArn: arn:aws:iam::652421452304:role/CfnContractTests
+    s3BucketName: cfn-contract-test-652421452304
+    kmsKeyArn: arn:aws:kms:us-east-2:652421452304:key/7d8c5fe0-c6d7-45cd-af3e-165e4d33235d
+  - regionName: us-west-1
+    iamRoleArn: arn:aws:iam::980818222174:role/CfnContractTests
+    s3BucketName: cfn-contract-test-980818222174
+    kmsKeyArn: arn:aws:kms:us-west-1:980818222174:key/67d8eaff-8f86-49cd-ac70-cf9c4ed11fd7
+  - regionName: us-west-2
+    iamRoleArn: arn:aws:iam::024129877953:role/CfnContractTests
+    s3BucketName: cfn-contract-test-024129877953
+    kmsKeyArn: arn:aws:kms:us-west-2:024129877953:key/902521ed-cc97-4489-995f-c7a4fd094b96

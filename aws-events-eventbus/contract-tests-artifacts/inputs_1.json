@@ -1,0 +1,19 @@
+{
+  "CreateInputs": {
+    "Name": "CtTestEventBus",
+    "Policy": "{\"Version\":\"2008-10-17\",\"Statement\":[{\"Sid\":\"allow_account_to_put_events\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:{{partition}}:iam::{{account}}:root\"},\"Action\":\"events:PutEvents\",\"Resource\":\"arn:{{partition}}:events:{{region}}:{{account}}:event-bus/CtTestEventBus\"}]}",
+    "Tags": [
+      {
+        "Key": "ContractTestKey",
+        "Value": "ContractTestValue"
+      }
+    ]
+  },
+  "PatchInputs": [
+      {
+        "op": "replace",
+        "path": "/Tags/0/Value",
+        "value": "ContractTestValueUpdated"
+      }
+  ]
+}

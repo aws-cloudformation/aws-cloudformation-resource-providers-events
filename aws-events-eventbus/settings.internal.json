@@ -1,0 +1,7 @@
+{
+  "FasPolicyPath": {
+    "aws": "/policies/AuthRuntime/authNPolicy/cloudformation/aws-events-eventbus.2023-07-31-15-53-37",
+    "aws-cn": "/policies/AuthRuntime/authNPolicy/cloudformation/aws-events-eventbus.2023-07-31-15-56-11-BJS",
+    "aws-us-gov": "/policies/AuthRuntime/authNPolicy/cloudformation/aws-events-eventbus.2023-07-31-15-57-18-PDT"
+  }
+}

@@ -1,0 +1,15 @@
+Description: "EventBus resource canary"
+Resources:
+  CanaryManagedPolicy:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: MyEventBusCanaryTest
+        Policy:
+          Version: '2008-10-17'
+          Statement:
+            - Sid: allow_account_to_put_events
+              Effect: Allow
+              Principal:
+                Service: ec2.amazonaws.com
+              Action: events:PutEvents
+              Resource: "*"
