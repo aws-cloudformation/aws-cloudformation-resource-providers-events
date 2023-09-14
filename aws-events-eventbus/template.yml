@@ -21,4 +21,3 @@ Resources:
       Handler: software.amazon.events.eventbus.HandlerWrapper::testEntrypoint
       Runtime: java8
       CodeUri: ./target/aws-events-eventbus-1.0.jar
-

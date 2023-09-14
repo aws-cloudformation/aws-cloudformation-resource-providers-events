@@ -4,8 +4,8 @@
   "sourceUrl": "https://github.com/aws-cloudformation/aws-cloudformation-resource-providers-events",
   "properties": {
     "EventSourceName": {
-        "description": "If you are creating a partner event bus, this specifies the partner event source that the new event bus will be matched with.",
-        "type": "string"
+      "description": "If you are creating a partner event bus, this specifies the partner event source that the new event bus will be matched with.",
+      "type": "string"
     },
     "Name": {
       "description": "The name of the event bus.",

@@ -10,10 +10,10 @@
     ]
   },
   "PatchInputs": [
-      {
-        "op": "replace",
-        "path": "/Tags/0/Value",
-        "value": "ContractTestValueUpdated"
-      }
+    {
+      "op": "replace",
+      "path": "/Tags/0/Value",
+      "value": "ContractTestValueUpdated"
+    }
   ]
 }
