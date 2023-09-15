@@ -1,0 +1,163 @@
+
+plugins {
+    id 'brazil-gradle'
+    id 'brazil-gradle-java-presets'
+    id 'java'
+    id 'jacoco'
+    id 'com.github.johnrengelman.shadow'
+    id 'com.github.spotbugs'
+}
+
+def resource_folder_name = 'aws-events-eventbus'
+def resource_name_with_dashes = 'aws-events-eventbus'
+def schema_file = "${resource_name_with_dashes}.json"
+
+description 'CloudFormation Resource Provider - <AWS::Events::EventBus>'
+
+// Include RPDK generated source by `cfn generate`
+sourceSets.main.java.srcDir 'target/generated-sources/rpdk'
+
+// Include schema into jar
+processResources {
+    dependsOn 'copySchema'
+
+    from('target/schema') {
+        include schema_file
+    }
+}
+
+task copySchema(type: Copy) {
+    description = 'Copy source schema to target directory'
+
+    from(projectDir) {
+        include schema_file
+    }
+    into "target/schema"
+}
+
+dependencies {
+    spotbugs("com.github.spotbugs:spotbugs:4.4.x")
+    spotbugsPlugins("brazil:CFNRegistrySpotBugsRules:1.0")
+    implementation brazilGradle.build()
+    testImplementation brazilGradle.testbuild()
+    compileOnly brazilGradle.tool('Lombok')
+    annotationProcessor brazilGradle.tool('Lombok')
+}
+
+spotbugs {
+    ignoreFailures = false
+    excludeFilter = file("$projectDir/findbugs-exclude.xml")
+}
+
+test {
+    useJUnitPlatform()
+}
+
+def cfn_command = "${brazilGradle.path('[AWSCloudFormationRPDKJavaPluginTool]run.runtimefarm')}/bin/cfn"
+
+// Generate RPDK wrapper source before compile
+task rpdkGenerateSource(type: Exec) {
+    description = 'Generate model sources from schema'
+    compileJava.dependsOn it
+
+    // Make proper up-to-date-ness for this Exec task
+    inputs.file schema_file
+    outputs.dirs 'target/generated-sources', 'target/generated-test-sources'
+
+    executable = cfn_command
+    args 'generate'
+}
+
+// Run the tests by default
+task release {
+    description = 'Build the project and copy the RPDK package to brazil'
+    dependsOn(check, assemble)
+}
+
+// shadowJar overtakes the jar output location
+jar.enabled = false
+
+// Build a shadow jar for resource provider
+shadowJar {
+    // cfn requires the artifact under target and suffixed with SNAPSHOT.jar
+    archiveClassifier = null
+    archiveBaseName = "${resource_name_with_dashes}"
+    destinationDirectory = file('target')
+}
+
+// Use `cfn` to build a RPDK package include resource provider shadow jar, schema etc.
+task cfnPackage(type: Exec) {
+    description = 'Create RPDK package with all resources'
+
+    // Make proper up-to-date-ness for this Exec task
+    inputs.files shadowJar.outputs
+    outputs.file "${resource_name_with_dashes}.zip"
+
+    executable = cfn_command
+    args 'submit', '--dry-run'
+}
+
+// Inject internal files into package for further canary and FAS configuration
+task rpdkPackage(type: Zip) {
+    description = 'Package all internal files with provider archive for deployment'
+    dependsOn cfnPackage
+    assemble.dependsOn it
+
+    destinationDirectory = file('build/rpdk')
+    archiveFileName = "${resource_name_with_dashes}.zip"
+
+    from zipTree(cfnPackage.outputs.files.singleFile)
+    from ("${rootDir}/${resource_name_with_dashes}") {
+        include "contract-tests-artifacts/*"
+        include "canary-bundle/**/*"
+        include "settings.internal.json"
+    }
+}
+
+
+test {
+    finalizedBy jacocoTestReport // report is always generated after tests run
+}
+jacocoTestReport {
+    dependsOn test // tests are required to run before generating the report
+}
+
+jacoco {
+    reportsDirectory = layout.buildDirectory.dir('customJacocoReportDir')
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = false
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+    }
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.8
+            }
+        }
+    }
+}
+
+assemble.dependsOn(rpdkPackage)
+
+// Publish the resource provider artifact as project output
+// See: https://docs.gradle.org/6.8.3/userguide/cross_project_publications.html#sec:simple-sharing-artifacts-between-projects
+configurations {
+    cfnPackageArchive
+}
+
+artifacts {
+    cfnPackageArchive rpdkPackage
+}
+
+// Delete target folder for clean
+clean {
+    delete 'target'
+    delete cfnPackage.outputs.files
+}
